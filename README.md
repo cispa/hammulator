@@ -27,9 +27,19 @@ Use the apply script for convenience:
 
 ## Dependencies
 
+All dependencies listed on the [gem5 building guide](https://www.gem5.org/documentation/general_docs/building).
+
+For Ubuntu 22.04 that is:
+
+``` sh
+sudo apt install build-essential git m4 scons zlib1g zlib1g-dev \
+    libprotobuf-dev protobuf-compiler libprotoc-dev libgoogle-perftools-dev \
+    python3-dev libboost-all-dev pkg-config
+```
+
 ## Building
 
-Once all repos have been cloned and appropriately patched, we can build gem5 (check https://www.gem5.org/documentation/general_docs/building for further help):
+Once all repos have been cloned and appropriately patched, we can build gem5 (check the [gem5 building guide](https://www.gem5.org/documentation/general_docs/building) for further help):
 
 ``` sh
 make hammulator
