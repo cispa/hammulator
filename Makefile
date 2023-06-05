@@ -1,15 +1,14 @@
-opt: dramsim
-	yes | scons --linker=mold --max-drift=10 --implicit-deps-changed build/X86/gem5.opt -j$(shell nproc)
+# this builds both gem5.opt and dramsim3
+hammulator: dramsim3
+	yes | scons -C gem5 --linker=mold --max-drift=10 --implicit-deps-changed build/X86/gem5.opt -j$(shell nproc)
 
-fast: dramsim
-	yes | scons --linker=mold --max-drift=10 --implicit-deps-changed build/X86/gem5.fast -j$(shell nproc)
-
-dramsim:
-	make -C ext/dramsim3/DRAMsim3/build -j$(shell nproc)
+dramsim3:
+	cmake -S gem5/ext/dramsim3/DRAMsim3 -B gem5/ext/dramsim3/DRAMsim3/build
+	make -C gem5/ext/dramsim3/DRAMsim3/build -j$(shell nproc)
 
 # TODO: remove
 compile_commands:
-	yes | scons build/X86/compile_commands.json -j$(shell nproc)
+	yes | scons -C gem5 build/X86/compile_commands.json -j$(shell nproc)
 
 build/dockcross-x64:
 	mkdir -p build
