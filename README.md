@@ -37,6 +37,10 @@ sudo apt install build-essential git m4 scons zlib1g zlib1g-dev \
     python3-dev libboost-all-dev pkg-config
 ```
 
+### Dependencies for full system emulation
+
+genext2fs
+
 ## Building
 
 Once all repos have been cloned and appropriately patched, we can build gem5 (check the [gem5 building guide](https://www.gem5.org/documentation/general_docs/building) for further help):
@@ -46,6 +50,77 @@ make hammulator
 ```
 
 This Makefile target builds both gem5 and DRAMsim3 into Hammulator.
+
+# Usage
+
+Once Hammulator is built, there are two possible paths to explore.
+With syscall emulation you can run simple Rowhammer tests and test mitigations.
+OS APIs are used, therefore, e.g., no page table can be hammered.
+For that you need full system emulation.
+Syscall emulation requires minimal setup, therefore it is the suggested method to proceed for becoming familiar with Hammulator. 
+
+## Syscall emulation
+Syscall emulation can either be directly used through the `se.py` script provided by gem5 or by the convenience Makefile target provided by Hammulator.
+TODO
+
+## Full system emulation
+
+Full system emulation is more complicated than syscall emulation since a GNU/Linux disk image is needed.
+The following sections describe how to create such an image and how to run your binary in the full system emulator.
+
+### Image Creation
+
+TODO
+
+add the scripts from bin to the image
+
+### Creating a Checkpoint
+
+Due to an issue with gem5 in combination with DRAMSim3, the image we created in the previous section cannot easily be booted with KVM[^1].
+Therefore, we suggest to first create a checkpoint of the system with a less performant CPU (`SimpleAtomicCPU`), and then to restore that checkpoint with the KVM CPU[^2].
+
+Checkpoint creation is easy with the following Makefile target:
+
+``` sh
+make dramsim-create-checkpoint
+```
+
+Note that this process can take up to an hour and needs to be done for each memory size. 
+The Makefile thereby handles moving the checkpoints for you.
+
+To monitor what is going on during the checkpoint creation launch above command with the tmux wrapper script:
+``` sh
+./tmux.sh make dramsim-create-checkpoint
+```
+
+### Restoring a Checkpoint
+
+Restoring a checkpoint is as easy as:
+
+``` sh
+make dramsim-create-checkpoint
+```
+
+Note that this command only starts gem5 and does not attach to stdout/stdin.
+For that either run `m5term localhost 3456`[^3] after starting the simulator or run above command with tmux wrapper:
+
+``` sh
+./tmux.sh make dramsim-create-checkpoint
+```
+
+In either case you should find yourself in a Gnu/Linux shell now.
+
+### Runnig your binary
+
+To run your binary in the emulator we first need to mount a temporary drive into the emulator.
+For that simple execute the `m` (mount) script that you previously copied into the disk image.
+For that simply type `m` into the shell and hit Enter.
+
+Now that the temporary image is mounted into the emulator you can run the default binary with the `r` (run) command.
+For other binaries run them as `/mnt/binary-name` as you would do on a regular Gnu/Linux system.
+Note that there are also `mr` and `umr` for mounting+running and remounting+running respectively.
+
+TODO: describe here which binary is run like that
 
 # Citation
 
@@ -59,3 +134,7 @@ If you use our tool in your work please cite our paper as:
  year = {2023}
 }
 ```
+
+[^1]: TODO. We are trying to fix this problem with the gem5 devs.
+[^2]: The KVM CPU is faster by a large margin. Check the paper for details.
+[^3]: Note that 3456 is only the default port used by gem5. This can vary when you have multiple running instances.

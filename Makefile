@@ -4,6 +4,8 @@
 hammulator: dramsim3 m5
 	yes | scons -C gem5 build/X86/gem5.opt -j$(shell nproc)
 
+# use this when developing for faster linkage
+# requires the mold linker
 hammulator-mold:
 	# TODO: check this maxdrift and implicit
 	yes | scons -C gem5 --linker=mold --max-drift=10 --implicit-deps-changed build/X86/gem5.opt -j$(shell nproc)
@@ -106,6 +108,7 @@ dramsim-create-checkpoint: build/tmp.img
 	cp -r m5out m5out_$(memsize)
 
 move-m5out:
+	# TODO: dont move or copy here, just use another folder in the gem5 command
 	rm -rf m5out
 	cp -r m5out_$(memsize) m5out
 
