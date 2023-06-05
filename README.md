@@ -120,7 +120,7 @@ Now that the temporary image is mounted into the emulator you can run the defaul
 For other binaries run them as `/mnt/binary-name` as you would do on a regular Gnu/Linux system.
 Note that there are also `mr` and `umr` for mounting+running and remounting+running respectively.
 
-TODO: describe here which binary is run like that
+The default run target can be changed in `img/tmp_root/run.sh`.
 
 ## Debugging
 
