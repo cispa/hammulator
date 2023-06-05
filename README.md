@@ -122,6 +122,18 @@ Note that there are also `mr` and `umr` for mounting+running and remounting+runn
 
 TODO: describe here which binary is run like that
 
+## Debugging
+
+All Makefile targets support debug flags.
+To, e.g., run full system emulation with the debug flag `DRAMsim3` execute the following command: 
+
+``` sh
+./tmux.sh make dramsim-restore DEBUG=DRAMsim3
+```
+
+The available flags can be checked with `build/X86/gem5.opt --debug-help`.
+Also check the [gem5 docs](https://www.gem5.org/documentation/learning_gem5/part2/debugging).
+
 # Citation
 
 If you use our tool in your work please cite our paper as:
