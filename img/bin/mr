@@ -1,0 +1,2 @@
+#!/bin/sh
+mount /dev/hdb /mnt && /mnt/run.sh
