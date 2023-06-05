@@ -1,12 +1,12 @@
 # TODO: check if we can build with docker image
 # TODO: check if the privesc exploit is faster with more ram
 
-cpu-clock := 3GHz
-
 # PT privesc exploit
+cpu-clock := 2GHz
 memsize := 200MB
 
-# benchmark
+# benchmarks
+# cpu-clock := 3GHz
 # memsize := 1GB
 
 args := --mem-size "$(memsize)" --cpu-clock "$(cpu-clock)" --caches --num-cpus 4 --mem-type=DRAMsim3
@@ -55,46 +55,39 @@ compile_commands:
 
 ################################################################################
 
-build/dockcross-x64:
-	mkdir -p build
-	docker run --rm dockcross/linux-x64 > build/dockcross-x64
-	chmod +x build/dockcross-x64
-
 TARGET_ISA=x86
 GEM5_HOME=$(realpath ./gem5)
 $(info GEM5_HOME is $(GEM5_HOME))
 # TODO: the last one seems to be wrong
 # should one call map_m5_mem???
-CFLAGS += -I$(GEM5_HOME)/include -I$(GEM5_HOME)/util/m5/src
+CFLAGS += -I$(GEM5_HOME)/include -I$(GEM5_HOME)/util/m5/src -static -Wall -O2
 LDFLAGS += -L$(GEM5_HOME)/util/m5/build/$(TARGET_ISA)/out -lm5
 CC=gcc
 CXX=g++
 
 # A simple binary that tests for Rowhammer bit flips.
-build/tmp_root/verify: progs/verify/verify.c build/dockcross-x64
+build/tmp_root/verify: progs/verify/verify.c
 	mkdir -p build/tmp_root
-	# build/dockcross-x64 bash -c '$$CC progs/verify/verify.c -o build/tmp_root/verify'
-	$(CC) -o build/tmp_root/verify progs/verify/verify.c $(CFLAGS) $(LDFLAGS) -static
+	$(CC) -o build/tmp_root/verify progs/verify/verify.c $(CFLAGS) $(LDFLAGS)
 
 # The privelege escalation binary for the page table exploit by Google Project Zero.
-build/tmp_root/priv: progs/privesc/privesc.cc build/dockcross-x64
+build/tmp_root/priv: progs/privesc/privesc.cc
 	mkdir -p build/tmp_root
-	# build/dockcross-x64 bash -c '$$CXX -Wall -Werror -O2 -static progs/privesc/privesc.cc -o build/tmp_root/priv'
-	$(CXX) -o build/tmp_root/priv progs/privesc/privesc.cc $(CFLAGS) $(LDFLAGS) -Wall -O2 -static
+	$(CXX) -o build/tmp_root/priv progs/privesc/privesc.cc $(CFLAGS) $(LDFLAGS)
 
 # The target program for the page table privelege escalation exploit by Google Project Zero.
-build/tmp_root/target_prog: progs/privesc/target_prog.c build/dockcross-x64
+build/tmp_root/target_prog: progs/privesc/target_prog.c
 	mkdir -p build/tmp_root
-	# NOTE: static here is important since load_start=0x400000 in pt code
-	build/dockcross-x64 bash -c '$$CC -Wall -Werror -O2 -static progs/privesc/target_prog.c -o build/tmp_root/target_prog'
+	# NOTE: static linkage is important for this binary since load_start=0x400000 in pt code
+	$(CC) -o build/tmp_root/target_prog progs/privesc/target_prog.c $(CFLAGS) $(LDFLAGS)
 
 build/tmp_root/rsa: progs/tiny-bignum-c/tests/rsa.c
 	mkdir -p build/tmp_root
-	$(CC) -o build/tmp_root/rsa progs/tiny-bignum-c/tests/rsa.c progs/tiny-bignum-c/bn.c  -Iprogs/tiny-bignum-c $(CFLAGS) $(LDFLAGS) -static
+	$(CC) -o build/tmp_root/rsa progs/tiny-bignum-c/tests/rsa.c progs/tiny-bignum-c/bn.c -Iprogs/tiny-bignum-c $(CFLAGS) $(LDFLAGS)
 
 build/tmp_root/rsa-public: progs/tiny-bignum-c/tests/rsa-public.c
 	mkdir -p build/tmp_root
-	$(CC) -o build/tmp_root/rsa-public progs/tiny-bignum-c/tests/rsa-public.c progs/tiny-bignum-c/bn.c  -Iprogs/tiny-bignum-c $(CFLAGS) $(LDFLAGS) -static
+	$(CC) -o build/tmp_root/rsa-public progs/tiny-bignum-c/tests/rsa-public.c progs/tiny-bignum-c/bn.c -Iprogs/tiny-bignum-c $(CFLAGS) $(LDFLAGS)
 
 comp: build/tmp_root/verify build/tmp_root/priv build/tmp_root/target_prog
 	cd rowhammer-test && ./make.sh
