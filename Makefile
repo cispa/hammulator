@@ -1,5 +1,10 @@
+# TODO: check if we can build with docker image
+
 # this builds both gem5.opt and dramsim3
 hammulator: dramsim3 m5
+	yes | scons -C gem5 build/X86/gem5.opt -j$(shell nproc)
+
+hammulator-mold:
 	# TODO: check this maxdrift and implicit
 	yes | scons -C gem5 --linker=mold --max-drift=10 --implicit-deps-changed build/X86/gem5.opt -j$(shell nproc)
 
