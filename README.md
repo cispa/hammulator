@@ -1,5 +1,7 @@
 # Hammulator
 
+This repository contains the source code for the [Hammulator framework](https://dramsec.ethz.ch/papers/thomas-dramsec23.pdf) presented at [DRAMSec23](https://dramsec.ethz.ch/2023.html).
+
 ## Obtaining Sources
 
 ``` sh
@@ -27,10 +29,23 @@ Use the apply script for convenience:
 
 ## Building
 
-Once all repos have been cloned and appropietadly patched, we can build gem5 (check https://www.gem5.org/documentation/general_docs/building for further help):
+Once all repos have been cloned and appropriately patched, we can build gem5 (check https://www.gem5.org/documentation/general_docs/building for further help):
 
 ``` sh
 make hammulator
 ```
 
 This Makefile target builds both gem5 and DRAMsim3 into Hammulator.
+
+# Citation
+
+If you use our tool in your work please cite our paper as:
+
+``` bibtex
+@inproceedings{Thomas2023Hammulator,
+ author = {Thomas, Fabian and Gerlach, Lukas and Schwarz, Michael},
+ booktitle = {DRAMSec},
+ title = {{Hammulator: Simulate Now -- Exploit Later}},
+ year = {2023}
+}
+```
