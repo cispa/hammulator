@@ -1,0 +1,30 @@
+From 16c0216b06963483aca43fb68679bad2b080f7c7 Mon Sep 17 00:00:00 2001
+From: Fabian Thomas <fabian@fabianthomas.de>
+Date: Mon, 5 Jun 2023 13:55:50 +0200
+Subject: [PATCH 2/2] fix path
+
+---
+ src/mem/DRAMsim3.py | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/mem/DRAMsim3.py b/src/mem/DRAMsim3.py
+index bc7192c901..c1ad25dcf0 100644
+--- a/src/mem/DRAMsim3.py
++++ b/src/mem/DRAMsim3.py
+@@ -48,11 +48,11 @@ class DRAMsim3(AbstractMemory):
+     )
+ 
+     configFile = Param.String(
+-        "ext/dramsim3/DRAMsim3/configs/" "DDR4_8Gb_x8_2400.ini",
++        "gem5/ext/dramsim3/DRAMsim3/configs/" "DDR4_8Gb_x8_2400.ini",
+         "The configuration file to use with DRAMSim3",
+     )
+     filePath = Param.String(
+-        "ext/dramsim3/DRAMsim3/", "Directory to prepend to file names"
++        "gem5/ext/dramsim3/DRAMsim3/", "Directory to prepend to file names"
+     )
+ 
+     def controller(self):
+-- 
+2.40.1
+
