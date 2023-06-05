@@ -122,6 +122,11 @@ Note that there are also `mr` and `umr` for mounting+running and remounting+runn
 
 The default run target can be changed in `img/tmp_root/run.sh`.
 
+## Varying parameters
+
+The memory size can be changed in the Makefile with the `memsize` variable.
+Note again that checkpoint recreation is needed when this value changes.
+
 ## Debugging
 
 All Makefile targets support debug flags.

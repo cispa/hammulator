@@ -37,20 +37,23 @@ LDFLAGS += -L$(GEM5_HOME)/util/m5/build/$(TARGET_ISA)/out -lm5
 CC=gcc
 CXX=g++
 
+# A simple binary that tests for Rowhammer bit flips.
 build/tmp_root/verify: progs/verify/verify.c build/dockcross-x64
 	mkdir -p build/tmp_root
 	# build/dockcross-x64 bash -c '$$CC progs/verify/verify.c -o build/tmp_root/verify'
 	$(CC) -o build/tmp_root/verify progs/verify/verify.c $(CFLAGS) $(LDFLAGS) -static
 
-build/tmp_root/priv: progs/page_table/privesc.cc build/dockcross-x64
+# The privelege escalation binary for the page table exploit by Google Project Zero.
+build/tmp_root/priv: progs/privesc/privesc.cc build/dockcross-x64
 	mkdir -p build/tmp_root
-	# build/dockcross-x64 bash -c '$$CXX -Wall -Werror -O2 -static progs/page_table/privesc.cc -o build/tmp_root/priv'
-	$(CXX) -o build/tmp_root/priv progs/page_table/privesc.cc $(CFLAGS) $(LDFLAGS) -Wall -O2 -static
+	# build/dockcross-x64 bash -c '$$CXX -Wall -Werror -O2 -static progs/privesc/privesc.cc -o build/tmp_root/priv'
+	$(CXX) -o build/tmp_root/priv progs/privesc/privesc.cc $(CFLAGS) $(LDFLAGS) -Wall -O2 -static
 
-build/tmp_root/target_prog: progs/page_table/target_prog.c build/dockcross-x64
+# The target program for the page table privelege escalation exploit by Google Project Zero.
+build/tmp_root/target_prog: progs/privesc/target_prog.c build/dockcross-x64
 	mkdir -p build/tmp_root
 	# NOTE: static here is important since load_start=0x400000 in pt code
-	build/dockcross-x64 bash -c '$$CC -Wall -Werror -O2 -static progs/page_table/target_prog.c -o build/tmp_root/target_prog'
+	build/dockcross-x64 bash -c '$$CC -Wall -Werror -O2 -static progs/privesc/target_prog.c -o build/tmp_root/target_prog'
 
 build/tmp_root/rsa: progs/tiny-bignum-c/tests/rsa.c
 	mkdir -p build/tmp_root
@@ -75,12 +78,12 @@ build/tmp.img: comp
 # NOTE: >3gb might break
 
 # pt exploit
-# memsize := 200MB
-# cpu-clock := 2GHz
+memsize := 200MB
+cpu-clock := 2GHz
 
 # benchmark
-memsize := 1GB
-cpu-clock := 3GHz
+# memsize := 1GB
+# cpu-clock := 3GHz
 
 args := --mem-size "$(memsize)" --cpu-clock "$(cpu-clock)" --caches -n 4 --mem-type=DRAMsim3
 
