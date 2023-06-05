@@ -97,7 +97,7 @@ se-args := $(args) --cpu-type=X86AtomicSimpleCPU --repeat-switch 1
 dramsim-create-checkpoint: build/tmp.img
 	rm -rf m5out
 	# TODO: why does kvm not work here?
-	build/X86/gem5.opt configs/example/fs.py $(fs-args) --cpu-type=X86AtomicSimpleCPU --checkpoint-at-end
+	build/X86/gem5.opt gem5/configs/example/fs.py $(fs-args) --cpu-type=X86AtomicSimpleCPU --checkpoint-at-end
 	cp -r m5out m5out_$(memsize)
 
 move-m5out:
@@ -108,13 +108,13 @@ move-m5out:
 # TODO: why is kvm slow?
 # NOTE: it may be that this only works with intel cpus
 dramsim-restore: build/tmp.img move-m5out
-	build/X86/gem5.opt $(gem5_args) configs/example/fs.py $(fs-args) --cpu-type=X86KvmCPU -r 1 --restore-with-cpu=X86KvmCPU --repeat-switch 1
+	build/X86/gem5.opt $(gem5_args) gem5/configs/example/fs.py $(fs-args) --cpu-type=X86KvmCPU -r 1 --restore-with-cpu=X86KvmCPU --repeat-switch 1
 
 speccpu-args := --mem-size "3GB" --cpu-clock "3GHz" --caches -n 2 --mem-type=DRAMsim3 --kernel=./x86-linux-kernel-5.4.49 --disk-image=./img/spec-2017-patched --disk-image=./build/tmp.img
 
 dramsim-create-checkpoint-speccpu: build/tmp.img
 	rm -rf m5out
-	build/X86/gem5.opt $(gem5_args) configs/example/fs.py $(speccpu-args) --cpu-type=X86AtomicSimpleCPU --checkpoint-at-end
+	build/X86/gem5.opt $(gem5_args) gem5/configs/example/fs.py $(speccpu-args) --cpu-type=X86AtomicSimpleCPU --checkpoint-at-end
 	cp -r m5out m5out_speccpu
 
 move-m5out-speccpu:
@@ -122,25 +122,25 @@ move-m5out-speccpu:
 	cp -r m5out_speccpu m5out
 
 dramsim-restore-speccpu: build/tmp.img move-m5out-speccpu
-	build/X86/gem5.opt $(gem5_args) configs/example/fs.py $(speccpu-args) --cpu-type=X86KvmCPU -r 1 --restore-with-cpu=X86KvmCPU --spec-cpu --spec-benchmark 500.perlbench_r --spec-size test
+	build/X86/gem5.opt $(gem5_args) gem5/configs/example/fs.py $(speccpu-args) --cpu-type=X86KvmCPU -r 1 --restore-with-cpu=X86KvmCPU --spec-cpu --spec-benchmark 500.perlbench_r --spec-size test
 
 verify: build/tmp_root/verify
-	build/X86/gem5.opt $(gem5_args) configs/example/se.py $(se-args) --cmd=build/tmp_root/verify
+	build/X86/gem5.opt $(gem5_args) gem5/configs/example/se.py $(se-args) --cmd=build/tmp_root/verify
 
 rsa: build/tmp_root/rsa
-	build/X86/gem5.opt $(gem5_args) configs/example/se.py $(se-args) --cmd=build/tmp_root/rsa
+	build/X86/gem5.opt $(gem5_args) gem5/configs/example/se.py $(se-args) --cmd=build/tmp_root/rsa
 
 rsa-public: build/tmp_root/rsa-public
-	build/X86/gem5.opt $(gem5_args) configs/example/se.py $(se-args) --cmd=build/tmp_root/rsa-public
+	build/X86/gem5.opt $(gem5_args) gem5/configs/example/se.py $(se-args) --cmd=build/tmp_root/rsa-public
 
 kvm: build/tmp.img
-	build/X86/gem5.opt $(gem5_args) configs/example/fs.py --cpu-type=X86KvmCPU --caches -n 8 --kernel=./x86-linux-kernel-5.4.49 --disk-image=img/spec-2017-patched --disk-image=./build/tmp.img --script img/sleep.sh
+	build/X86/gem5.opt $(gem5_args) gem5/configs/example/fs.py --cpu-type=X86KvmCPU --caches -n 8 --kernel=./x86-linux-kernel-5.4.49 --disk-image=img/spec-2017-patched --disk-image=./build/tmp.img --script img/sleep.sh
 
 fs-help:
-	build/X86/gem5.opt $(gem5_args) configs/example/fs.py --help | less
+	build/X86/gem5.opt $(gem5_args) gem5/configs/example/fs.py --help | less
 
 se-help:
-	build/X86/gem5.opt $(gem5_args) configs/example/se.py --help | less
+	build/X86/gem5.opt $(gem5_args) gem5/configs/example/se.py --help | less
 
 clean:
 	rm -rf build
