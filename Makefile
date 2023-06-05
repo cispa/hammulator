@@ -1,6 +1,11 @@
 # this builds both gem5.opt and dramsim3
-hammulator: dramsim3
+hammulator: dramsim3 m5
+	# TODO: check this maxdrift and implicit
 	yes | scons -C gem5 --linker=mold --max-drift=10 --implicit-deps-changed build/X86/gem5.opt -j$(shell nproc)
+
+# this builds m5term and the cpu swapping libraries
+m5:
+	scons -C gem5/util/m5 build/x86/out/m5
 
 dramsim3:
 	cmake -S gem5/ext/dramsim3/DRAMsim3 -B gem5/ext/dramsim3/DRAMsim3/build
@@ -16,7 +21,7 @@ build/dockcross-x64:
 	chmod +x build/dockcross-x64
 
 TARGET_ISA=x86
-GEM5_HOME=$(realpath ./)
+GEM5_HOME=$(realpath ./gem5)
 $(info GEM5_HOME is $(GEM5_HOME))
 # TODO: the last one seems to be wrong
 # should one call map_m5_mem???
@@ -139,3 +144,5 @@ se-help:
 
 clean:
 	rm -rf build
+	rm -rf gem5/util/m5/build
+	rm -rf gem5/ext/dramsim3/DRAMsim3/build
