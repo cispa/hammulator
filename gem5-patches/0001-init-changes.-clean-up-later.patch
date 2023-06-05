@@ -1,0 +1,1375 @@
+From ec8c9eed3873103c1b598dd77f6905c68490cea1 Mon Sep 17 00:00:00 2001
+From: Fabian Thomas <fabian@fabianthomas.de>
+Date: Mon, 5 Jun 2023 12:42:56 +0200
+Subject: [PATCH] init changes. clean up later.
+
+---
+ .gitignore                                    |   6 +
+ SConstruct                                    |   1 +
+ configs/common/Options.py                     |  69 +++++
+ configs/common/Simulation.py                  |  92 ++++++-
+ configs/example/fs.py                         |  16 ++
+ .../x86-spec-cpu2017-benchmarks.py            | 174 ++++++++----
+ configs/learning_gem5/part1/caches.py         |   4 +-
+ configs/learning_gem5/part1/simple.py         |  30 +-
+ configs/learning_gem5/part1/two_level.py      |  25 +-
+ src/SConscript                                |   4 +
+ src/mem/DRAMsim3.py                           |   3 +
+ src/mem/dramsim3.cc                           | 258 +++++++++++++++++-
+ src/mem/dramsim3.hh                           |  36 ++-
+ src/mem/dramsim3_wrapper.cc                   |  19 +-
+ src/mem/dramsim3_wrapper.hh                   |  16 +-
+ .../gem5/components/memory/dramsim_3.py       |  27 +-
+ .../processors/simple_switchable_processor.py |   3 +
+ tests/test-progs/hello/src/Makefile.x86       |   5 +-
+ tests/test-progs/hello/src/hello.c            |  54 +++-
+ 19 files changed, 722 insertions(+), 120 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 229a0d5ae9..b48ae6d4f7 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -32,3 +32,9 @@ configs/example/memcheck.cfg
+ configs/dram/lowp_sweep.cfg
+ .pyenv
+ .vscode
++
++rowhammer_test
++dramsim3.txt
++dramsim3.json
++dramsim3epoch.json
++compile_commands.json
+diff --git a/SConstruct b/SConstruct
+index e8107ea2c7..56775f2b29 100755
+--- a/SConstruct
++++ b/SConstruct
+@@ -181,6 +181,7 @@ main = Environment(tools=[
+ 
+ main.Tool(SCons.Tool.FindTool(['gcc', 'clang'], main))
+ main.Tool(SCons.Tool.FindTool(['g++', 'clang++'], main))
++main.Tool(SCons.Tool.FindTool(['compilation_db'], main))
+ 
+ Export('main')
+ 
+diff --git a/configs/common/Options.py b/configs/common/Options.py
+index 81d7791285..208095e8ac 100644
+--- a/configs/common/Options.py
++++ b/configs/common/Options.py
+@@ -608,6 +608,75 @@ def addCommonOptions(parser):
+         "-p", "--prog-interval", type=str, help="CPU Progress Interval"
+     )
+ 
++    parser.add_argument(
++        "--spec-cpu",
++        action="store_true",
++        default=False,
++    )
++    benchmark_choices = [
++        "500.perlbench_r",
++        "502.gcc_r",
++        "503.bwaves_r",
++        "505.mcf_r",
++        "507.cactusBSSN_r",
++        "508.namd_r",
++        "510.parest_r",
++        "511.povray_r",
++        "519.lbm_r",
++        "520.omnetpp_r",
++        "521.wrf_r",
++        "523.xalancbmk_r",
++        "525.x264_r",
++        "527.cam4_r",
++        "531.deepsjeng_r",
++        "538.imagick_r",
++        "541.leela_r",
++        "544.nab_r",
++        "548.exchange2_r",
++        "549.fotonik3d_r",
++        "554.roms_r",
++        "557.xz_r",
++        "600.perlbench_s",
++        "602.gcc_s",
++        "603.bwaves_s",
++        "605.mcf_s",
++        "607.cactusBSSN_s",
++        "608.namd_s",
++        "610.parest_s",
++        "611.povray_s",
++        "619.lbm_s",
++        "620.omnetpp_s",
++        "621.wrf_s",
++        "623.xalancbmk_s",
++        "625.x264_s",
++        "627.cam4_s",
++        "631.deepsjeng_s",
++        "638.imagick_s",
++        "641.leela_s",
++        "644.nab_s",
++        "648.exchange2_s",
++        "649.fotonik3d_s",
++        "654.roms_s",
++        "996.specrand_fs",
++        "997.specrand_fr",
++        "998.specrand_is",
++        "999.specrand_ir",
++    ]
++    parser.add_argument(
++        "--spec-benchmark",
++        type=str,
++        help="Input the benchmark program to execute.",
++        choices=benchmark_choices,
++    )
++
++    size_choices = ["test", "train", "ref"]
++    parser.add_argument(
++        "--spec-size",
++        type=str,
++        help="Sumulation size the benchmark program.",
++        choices=size_choices,
++    )
++
+     # Fastforwarding and simpoint related materials
+     parser.add_argument(
+         "-W",
+diff --git a/configs/common/Simulation.py b/configs/common/Simulation.py
+index 731b3fcaa5..f61a94c2f4 100644
+--- a/configs/common/Simulation.py
++++ b/configs/common/Simulation.py
+@@ -444,24 +444,80 @@ def restoreSimpointCheckpoint():
+ 
+ def repeatSwitch(testsys, repeat_switch_cpu_list, maxtick, switch_freq):
+     print("starting switch loop")
++    f=open("times", "w")
+     while True:
+-        exit_event = m5.simulate(switch_freq)
++        # print("switch")
++        # exit_event = m5.simulate(switch_freq)
++        from datetime import datetime
++        print(datetime.now())
++        import time
++        before = time.time()
++        exit_event = m5.simulate()
++        after = time.time()
++        f.write(str(after-before)+"\n")
++        f.flush()
++        print(
++            "Total wallclock time: %.2fs, %.2f min"
++            % (after - before, (after - before) / 60)
++        )
++        print(after-before, "s")
+         exit_cause = exit_event.getCause()
++        print("now switching")
++        # print(exit_cause)
+ 
+-        if exit_cause != "simulate() limit reached":
++        if exit_cause != "m5_exit instruction encountered":
+             return exit_event
+ 
+-        m5.switchCpus(testsys, repeat_switch_cpu_list)
++        repeat_switch_cpu_list = switch_cpu(testsys, repeat_switch_cpu_list)
+ 
+-        tmp_cpu_list = []
+-        for old_cpu, new_cpu in repeat_switch_cpu_list:
+-            tmp_cpu_list.append((new_cpu, old_cpu))
+-        repeat_switch_cpu_list = tmp_cpu_list
++        # if (maxtick - m5.curTick()) <= switch_freq:
++        #     exit_event = m5.simulate(maxtick - m5.curTick())
++        #     return exit_event
+ 
+-        if (maxtick - m5.curTick()) <= switch_freq:
+-            exit_event = m5.simulate(maxtick - m5.curTick())
+-            return exit_event
++def switch_cpu(testsys, repeat_switch_cpu_list):
++    m5.switchCpus(testsys, repeat_switch_cpu_list)
++    print("old cpu:", type(repeat_switch_cpu_list[0][0]))
++    print("new cpu:", type(repeat_switch_cpu_list[0][1]))
++    tmp_cpu_list = []
++    for old_cpu, new_cpu in repeat_switch_cpu_list:
++        tmp_cpu_list.append((new_cpu, old_cpu))
++    repeat_switch_cpu_list = tmp_cpu_list
++    return repeat_switch_cpu_list
++
++
++def speccpu(testsys, repeat_switch_cpu_list):
++    print("starting speccpu")
++
++    m5.simulate()
++    m5.simulate()
++    m5.simulate()
++    m5.simulate()
++
++    print("switching cpu and taking time")
++    repeat_switch_cpu_list = switch_cpu(testsys, repeat_switch_cpu_list)
++    import time
++    globalStart = time.time()
++    from datetime import datetime
++    print(datetime.now())
++
++    exit_event = m5.simulate()
++    exit_cause = exit_event.getCause()
++    if exit_cause != "m5_exit instruction encountered":
++        return exit_event
+ 
++    print("switching cpu back")
++    repeat_switch_cpu_list = switch_cpu(testsys, repeat_switch_cpu_list)
++
++    print(
++        "Total wallclock time: %.2fs, %.2f min"
++        % (time.time() - globalStart, (time.time() - globalStart) / 60)
++    )
++
++    while True:
++        exit_event = m5.simulate()
++        exit_cause = exit_event.getCause()
++        if exit_cause != "m5_exit instruction encountered":
++            return exit_event
+ 
+ def run(options, root, testsys, cpu_class):
+     if options.checkpoint_dir:
+@@ -483,6 +539,10 @@ def run(options, root, testsys, cpu_class):
+     if options.repeat_switch and options.take_checkpoints:
+         fatal("Can't specify both --repeat-switch and --take-checkpoints")
+ 
++    if options.spec_cpu:
++        if options.script is not None:
++            test_sys.readfile = options.script
++
+     # Setup global stat filtering.
+     stat_root_simobjs = []
+     for stat_root_str in options.stats_root:
+@@ -546,7 +606,7 @@ def run(options, root, testsys, cpu_class):
+         testsys.switch_cpus = switch_cpus
+         switch_cpu_list = [(testsys.cpu[i], switch_cpus[i]) for i in range(np)]
+ 
+-    if options.repeat_switch:
++    if options.repeat_switch or options.spec_cpu:
+         switch_class = getCPUClass(options.cpu_type)[0]
+         if switch_class.require_caches() and not options.caches:
+             print("%s: Must be used with caches" % str(switch_class))
+@@ -556,7 +616,8 @@ def run(options, root, testsys, cpu_class):
+             sys.exit(1)
+ 
+         repeat_switch_cpus = [
+-            switch_class(switched_out=True, cpu_id=(i)) for i in range(np)
++            # switch_class(switched_out=True, cpu_id=(i)) for i in range(np)
++            X86TimingSimpleCPU(switched_out=True, cpu_id=(i)) for i in range(np)
+         ]
+ 
+         for i in range(np):
+@@ -799,10 +860,15 @@ def run(options, root, testsys, cpu_class):
+ 
+         # If checkpoints are being taken, then the checkpoint instruction
+         # will occur in the benchmark code it self.
+-        if options.repeat_switch and maxtick > options.repeat_switch:
++        # if options.repeat_switch and maxtick > options.repeat_switch:
++        if options.repeat_switch:
+             exit_event = repeatSwitch(
+                 testsys, repeat_switch_cpu_list, maxtick, options.repeat_switch
+             )
++        elif options.spec_cpu:
++            exit_event = speccpu(
++                testsys, repeat_switch_cpu_list
++            )
+         else:
+             exit_event = benchCheckpoints(options, maxtick, cptdir)
+ 
+diff --git a/configs/example/fs.py b/configs/example/fs.py
+index 0e31cfccac..d0549bd211 100644
+--- a/configs/example/fs.py
++++ b/configs/example/fs.py
+@@ -141,6 +141,22 @@ def build_test_system(np):
+     if args.script is not None:
+         test_sys.readfile = args.script
+ 
++    if args.spec_cpu:
++        import os
++        import time
++        output_dir = "speclogs_" + "".join(x.strip() for x in time.asctime().split())
++        output_dir = output_dir.replace(":", "")
++
++        try:
++            os.makedirs(os.path.join(m5.options.outdir, output_dir))
++        except FileExistsError:
++            warn("output directory already exists!")
++
++        command = "{} {} {}".format(args.spec_benchmark, args.spec_size, output_dir)
++        with open("speccpu-command", "w") as file:
++            file.write(command)
++        test_sys.readfile = "speccpu-command"
++
+     test_sys.init_param = args.init_param
+ 
+     # For now, assign all the CPUs to the same clock domain
+diff --git a/configs/example/gem5_library/x86-spec-cpu2017-benchmarks.py b/configs/example/gem5_library/x86-spec-cpu2017-benchmarks.py
+index c4af7f5dd9..a7257bd030 100644
+--- a/configs/example/gem5_library/x86-spec-cpu2017-benchmarks.py
++++ b/configs/example/gem5_library/x86-spec-cpu2017-benchmarks.py
+@@ -181,6 +181,9 @@ parser.add_argument(
+ 
+ args = parser.parse_args()
+ 
++m5.options.outdir = "m5out_speccpu"
++m5.core.setOutputDir(m5.options.outdir)
++
+ # We expect the user to input the full path of the disk-image.
+ if args.image[0] != "/":
+     # We need to get the absolute path to this file. We assume that the file is
+@@ -202,19 +205,27 @@ from gem5.components.cachehierarchies.ruby.mesi_two_level_cache_hierarchy import
+     MESITwoLevelCacheHierarchy,
+ )
+ 
+-cache_hierarchy = MESITwoLevelCacheHierarchy(
+-    l1d_size="32kB",
++
++from gem5.components.cachehierarchies.classic.private_l1_shared_l2_cache_hierarchy import PrivateL1SharedL2CacheHierarchy
++cache_hierarchy = PrivateL1SharedL2CacheHierarchy(
++    l1d_size="256kB",
+     l1d_assoc=8,
+-    l1i_size="32kB",
++    l1i_size="512kB",
+     l1i_assoc=8,
+-    l2_size="256kB",
++    l2_size="4MB",
+     l2_assoc=16,
+-    num_l2_banks=2,
++    # num_l2_banks=2,
+ )
++
++test = False
++
+ # Memory: Dual Channel DDR4 2400 DRAM device.
+ # The X86 board only supports 3 GB of main memory.
+-
+-memory = DualChannelDDR4_2400(size="3GB")
++if test:
++    memory = DualChannelDDR4_2400(size="3GB")
++else:
++    from gem5.components.memory.dramsim_3 import SingleChannelDDR4_2400
++    memory = SingleChannelDDR4_2400(size="3GB")
+ 
+ # Here we setup the processor. This is a special switchable processor in which
+ # a starting core type and a switch core type must be specified. Once a
+@@ -224,7 +235,10 @@ memory = DualChannelDDR4_2400(size="3GB")
+ # cores for the command we wish to run after boot.
+ 
+ processor = SimpleSwitchableProcessor(
+-    starting_core_type=CPUTypes.KVM,
++    # TODO: we can use kvm here after creating snapshot
++    # TODO: switing broken?
++    # starting_core_type=CPUTypes.TIMING,
++    starting_core_type=CPUTypes.TIMING,
+     switch_core_type=CPUTypes.TIMING,
+     isa=ISA.X86,
+     num_cores=2,
+@@ -271,59 +285,115 @@ command = "{} {} {}".format(args.benchmark, args.size, output_dir)
+ # For enabling CustomResource, we pass an additional parameter to mount the
+ # correct partition.
+ 
+-board.set_kernel_disk_workload(
+-    # The x86 linux kernel will be automatically downloaded to the
+-    # `~/.cache/gem5` directory if not already present.
+-    # SPEC CPU2017 benchamarks were tested with kernel version 4.19.83
+-    kernel=Resource("x86-linux-kernel-4.19.83"),
+-    # The location of the x86 SPEC CPU 2017 image
+-    disk_image=CustomDiskImageResource(
+-        args.image, disk_root_partition=args.partition
+-    ),
+-    readfile_contents=command,
+-)
++# command = 500.perlbench_r test speclogs_WedApr51100422023
++
++kernel = Resource("x86-linux-kernel-4.19.83")
++image = CustomDiskImageResource(
++            args.image, disk_root_partition=args.partition
++        )
++
++checkpoint_dir = m5.options.outdir+"/cpt"
++# import glob
++# checkpoints = glob.glob(m5_out+"/cpt*")
++# checkpoints = glob.glob(checkpoint_dir)
++import os.path
++if not os.path.exists(checkpoint_dir):
++    print("creating checkpoint...")
++    board.set_kernel_disk_workload(
++        # The x86 linux kernel will be automatically downloaded to the
++        # `~/.cache/gem5` directory if not already present.
++        # SPEC CPU2017 benchamarks were tested with kernel version 4.19.83
++        kernel=kernel,
++        # The location of the x86 SPEC CPU 2017 image
++        disk_image=image,
++        # readfile_contents=command,
++        # checkpoint = dir
++    )
+ 
++    def handle_exit():
++        yield False  # E.g., continue the simulation.
++        print("Done booting Linux")
++        print("Creating checkpoint")
++        m5.checkpoint(checkpoint_dir)
++
++    simulator = Simulator(
++        board=board,
++        on_exit_event={
++            ExitEvent.EXIT: handle_exit(),
++        },
++    )
+ 
+-def handle_exit():
+-    print("Done bootling Linux")
+-    print("Resetting stats at the start of ROI!")
+-    m5.stats.reset()
+-    yield False  # E.g., continue the simulation.
+-    print("Dump stats at the end of the ROI!")
+-    m5.stats.dump()
+-    yield True  # Stop the simulation. We're done.
++    print("Running the simulation")
++    simulator.run()
++else:
++    print("trying to restore checkpoint....")
++    import pathlib
++    board.set_kernel_disk_workload(
++        # The x86 linux kernel will be automatically downloaded to the
++        # `~/.cache/gem5` directory if not already present.
++        # SPEC CPU2017 benchamarks were tested with kernel version 4.19.83
++        kernel=kernel,
++        # The location of the x86 SPEC CPU 2017 image
++        disk_image=image,
++        readfile_contents=command,
++        checkpoint=pathlib.Path(checkpoint_dir)
++    )
+ 
+ 
+-simulator = Simulator(
+-    board=board,
+-    on_exit_event={
+-        ExitEvent.EXIT: handle_exit(),
+-    },
+-)
++    globalStart = 0
++
++    def handle_exit():
++        print("Done bootling Linux")
++        yield False
++        yield False # for checkpoint
++        print("switching to timing")
++        # if not test:
++        #     processor.switch()
++        print("Resetting stats at the start of ROI!")
++        # m5.stats.reset()
++        global globalStart
++        globalStart = time.time()
++        yield False # reset stats
++        print("switching back to kvm")
++        # if not test:
++        #     processor.switch()
++        yield False # swap cpu back
++        print("Dump stats at the end of the ROI!")
++        # m5.stats.dump()
++        yield True  # Stop the simulation. We're done.
++
++
++    simulator = Simulator(
++        board=board,
++        on_exit_event={
++            ExitEvent.EXIT: handle_exit(),
++        },
++    )
+ 
+-# We maintain the wall clock time.
++    # We maintain the wall clock time.
+ 
+-globalStart = time.time()
++    # globalStart = time.time()
+ 
+-print("Running the simulation")
+-print("Using KVM cpu")
++    print("Running the simulation")
++    print("Using KVM cpu")
+ 
+-m5.stats.reset()
++    # m5.stats.reset()
+ 
+-# We start the simulation
+-simulator.run()
++    # We start the simulation
++    simulator.run()
+ 
+-# We print the final simulation statistics.
++    # We print the final simulation statistics.
+ 
+-print("Done with the simulation")
+-print()
+-print("Performance statistics:")
++    print("Done with the simulation")
++    print()
++    print("Performance statistics:")
+ 
+-print("Simulated time in ROI: " + ((str(simulator.get_roi_ticks()[0]))))
+-print(
+-    "Ran a total of", simulator.get_current_tick() / 1e12, "simulated seconds"
+-)
+-print(
+-    "Total wallclock time: %.2fs, %.2f min"
+-    % (time.time() - globalStart, (time.time() - globalStart) / 60)
+-)
++    # print(simulator.get_roi_ticks())
++    # print("Simulated time in ROI: " + ((str(simulator.get_roi_ticks()[0]))))
++    # print(
++    #     "Ran a total of", simulator.get_current_tick() / 1e12, "simulated seconds"
++    # )
++    print(
++        "Total wallclock time: %.2fs, %.2f min"
++        % (time.time() - globalStart, (time.time() - globalStart) / 60)
++    )
+diff --git a/configs/learning_gem5/part1/caches.py b/configs/learning_gem5/part1/caches.py
+index 9bb06ab2e6..2bccf990e4 100644
+--- a/configs/learning_gem5/part1/caches.py
++++ b/configs/learning_gem5/part1/caches.py
+@@ -72,7 +72,7 @@ class L1ICache(L1Cache):
+     """Simple L1 instruction cache with default values"""
+ 
+     # Set the default size
+-    size = "16kB"
++    size = "512kB"
+ 
+     SimpleOpts.add_option(
+         "--l1i_size", help="L1 instruction cache size. Default: %s" % size
+@@ -93,7 +93,7 @@ class L1DCache(L1Cache):
+     """Simple L1 data cache with default values"""
+ 
+     # Set the default size
+-    size = "64kB"
++    size = "256kB"
+ 
+     SimpleOpts.add_option(
+         "--l1d_size", help="L1 data cache size. Default: %s" % size
+diff --git a/configs/learning_gem5/part1/simple.py b/configs/learning_gem5/part1/simple.py
+index e36cd78c8e..e32234ee4a 100644
+--- a/configs/learning_gem5/part1/simple.py
++++ b/configs/learning_gem5/part1/simple.py
+@@ -41,33 +41,43 @@ respectively.
+ # import the m5 (gem5) library created when gem5 is built
+ import m5
+ 
++# import the caches which we made
++from caches import *
++
+ # import all of the SimObjects
+ from m5.objects import *
+-
++   
+ # create the system we are going to simulate
+ system = System()
+ 
+ # Set the clock frequency of the system (and all of its children)
+ system.clk_domain = SrcClockDomain()
+-system.clk_domain.clock = "1GHz"
++system.clk_domain.clock = "2.5GHz"
+ system.clk_domain.voltage_domain = VoltageDomain()
+ 
+ # Set up the system
+ system.mem_mode = "timing"  # Use timing accesses
+-system.mem_ranges = [AddrRange("512MB")]  # Create an address range
++system.mem_ranges = [AddrRange("8GB")]  # Create an address range
+ 
+ # Create a simple CPU
+ # You can use ISA-specific CPU models for different workloads:
+ # `RiscvTimingSimpleCPU`, `ArmTimingSimpleCPU`.
+ system.cpu = X86TimingSimpleCPU()
+ 
+-# Create a memory bus, a system crossbar, in this case
++# Create an L1 instruction and data cache
++system.cpu.icache = L1ICache()
++
++# Create a memory bus
+ system.membus = SystemXBar()
+ 
+-# Hook the CPU ports up to the membus
+-system.cpu.icache_port = system.membus.cpu_side_ports
++# Connect the instruction and data caches to the CPU
++system.cpu.icache.connectCPU(system.cpu)
++
++# Hook the CPU ports up to the l2bus
++system.cpu.icache.connectBus(system.membus)
+ system.cpu.dcache_port = system.membus.cpu_side_ports
+ 
++
+ # create the interrupt controller for the CPU and connect to the membus
+ system.cpu.createInterruptController()
+ 
+@@ -79,9 +89,9 @@ system.cpu.interrupts[0].int_requestor = system.membus.cpu_side_ports
+ system.cpu.interrupts[0].int_responder = system.membus.mem_side_ports
+ 
+ # Create a DDR3 memory controller and connect it to the membus
+-system.mem_ctrl = MemCtrl()
+-system.mem_ctrl.dram = DDR3_1600_8x8()
+-system.mem_ctrl.dram.range = system.mem_ranges[0]
++system.mem_ctrl = DRAMsim3()
++system.mem_ctrl.configFile = "ext/dramsim3/DRAMsim3/configs/DDR4_8Gb_x8_3200.ini"
++system.mem_ctrl.range = system.mem_ranges[0]
+ system.mem_ctrl.port = system.membus.mem_side_ports
+ 
+ # Connect the system up to the membus
+@@ -94,7 +104,7 @@ thispath = os.path.dirname(os.path.realpath(__file__))
+ binary = os.path.join(
+     thispath,
+     "../../../",
+-    "tests/test-progs/hello/bin/x86/linux/hello",
++    "tests/test-progs/hello/src/rowhammer_test",
+ )
+ 
+ system.workload = SEWorkload.init_compatible(binary)
+diff --git a/configs/learning_gem5/part1/two_level.py b/configs/learning_gem5/part1/two_level.py
+index 8aa7dd7e83..a3787a2404 100644
+--- a/configs/learning_gem5/part1/two_level.py
++++ b/configs/learning_gem5/part1/two_level.py
+@@ -56,11 +56,16 @@ from common import SimpleOpts
+ 
+ # Default to running 'hello', use the compiled ISA to find the binary
+ # grab the specific path to the binary
++# TODO: use root folder here and use se.py
+ thispath = os.path.dirname(os.path.realpath(__file__))
+ default_binary = os.path.join(
+-    thispath,
+-    "../../../",
+-    "tests/test-progs/hello/bin/x86/linux/hello",
++    # thispath,
++    # "../../../",
++    # "tests/test-progs/hello/src/rowhammer_test",
++    # "rowhammer-test/rowhammer_test",
++    # "/usr/bin/whoami"
++    # "/usr/bin/bash"
++    "img/root/verify",
+ )
+ 
+ # Binary to execute
+@@ -74,15 +79,16 @@ system = System()
+ 
+ # Set the clock frequency of the system (and all of its children)
+ system.clk_domain = SrcClockDomain()
+-system.clk_domain.clock = "1GHz"
++system.clk_domain.clock = "2.5GHz"
+ system.clk_domain.voltage_domain = VoltageDomain()
+ 
+ # Set up the system
+ system.mem_mode = "timing"  # Use timing accesses
+-system.mem_ranges = [AddrRange("512MB")]  # Create an address range
++system.mem_ranges = [AddrRange("8GB")]  # Create an address range
+ 
+ # Create a simple CPU
+ system.cpu = X86TimingSimpleCPU()
++# system.cpu = X86KvmCPU()
+ 
+ # Create an L1 instruction and data cache
+ system.cpu.icache = L1ICache(args)
+@@ -118,12 +124,13 @@ system.cpu.interrupts[0].int_responder = system.membus.mem_side_ports
+ # Connect the system up to the membus
+ system.system_port = system.membus.cpu_side_ports
+ 
+-# Create a DDR3 memory controller
+-system.mem_ctrl = MemCtrl()
+-system.mem_ctrl.dram = DDR3_1600_8x8()
+-system.mem_ctrl.dram.range = system.mem_ranges[0]
++# Create a DDR3 memory controller and connect it to the membus
++system.mem_ctrl = DRAMsim3()
++system.mem_ctrl.configFile = "ext/dramsim3/DRAMsim3/configs/DDR4_8Gb_x8_2400.ini"
++system.mem_ctrl.range = system.mem_ranges[0]
+ system.mem_ctrl.port = system.membus.mem_side_ports
+ 
++
+ system.workload = SEWorkload.init_compatible(args.binary)
+ 
+ # Create a process for a simple "Hello World" application
+diff --git a/src/SConscript b/src/SConscript
+index 4e7139c064..a8d5fa1e7a 100644
+--- a/src/SConscript
++++ b/src/SConscript
+@@ -64,6 +64,10 @@ if env['CONF']['USE_EFENCE']:
+ # Children need to see the environment
+ Export('env')
+ 
++# Generate compile_commands.json for language servers
++if 'CompilationDatabase' in env['BUILDERS']:
++    env.CompilationDatabase('compile_commands.json')
++
+ build_env = list(env['CONF'].items())
+ 
+ from code_formatter import code_formatter
+diff --git a/src/mem/DRAMsim3.py b/src/mem/DRAMsim3.py
+index 0da9c1067b..bc7192c901 100644
+--- a/src/mem/DRAMsim3.py
++++ b/src/mem/DRAMsim3.py
+@@ -54,3 +54,6 @@ class DRAMsim3(AbstractMemory):
+     filePath = Param.String(
+         "ext/dramsim3/DRAMsim3/", "Directory to prepend to file names"
+     )
++
++    def controller(self):
++        return self
+diff --git a/src/mem/dramsim3.cc b/src/mem/dramsim3.cc
+index fbffc7b579..4747844b89 100644
+--- a/src/mem/dramsim3.cc
++++ b/src/mem/dramsim3.cc
+@@ -41,22 +41,44 @@
+ #include "base/trace.hh"
+ #include "debug/DRAMsim3.hh"
+ #include "debug/Drain.hh"
++#include "debug/VNC.hh"
++#include "debug/Uart.hh"
++#include "debug/RubyNetwork.hh"
+ #include "sim/system.hh"
+ 
++#include <cstdint>
++#include <random>
++
+ namespace gem5
+ {
+ 
+ namespace memory
+ {
+ 
++//static int read_hit = 0;
++//static int read_miss = 0;
++//static int write_hit = 0;
++//static int write_miss = 0;
++
+ DRAMsim3::DRAMsim3(const Params &p) :
+     AbstractMemory(p),
+     port(name() + ".port", *this),
+     read_cb(std::bind(&DRAMsim3::readComplete,
+-                      this, 0, std::placeholders::_1)),
++                      this, 0, std::placeholders::_1, 
++                      std::placeholders::_2, std::placeholders::_3, 
++                      std::placeholders::_4, std::placeholders::_5, 
++                      std::placeholders::_6, std::placeholders::_7, 
++                      std::placeholders::_8)),
+     write_cb(std::bind(&DRAMsim3::writeComplete,
+-                       this, 0, std::placeholders::_1)),
+-    wrapper(p.configFile, p.filePath, read_cb, write_cb),
++                       this, 0, std::placeholders::_1, 
++                       std::placeholders::_2, std::placeholders::_3, 
++                       std::placeholders::_4, std::placeholders::_5, 
++                       std::placeholders::_6, std::placeholders::_7,
++                       std::placeholders::_8)),
++    refresh_cb(std::bind(&DRAMsim3::refreshComplete,
++                       this, 0, std::placeholders::_1, 
++                       std::placeholders::_2, std::placeholders::_3)),
++    wrapper(p.configFile, p.filePath, read_cb, write_cb, refresh_cb),
+     retryReq(false), retryResp(false), startTick(0),
+     nbrOutstandingReads(0), nbrOutstandingWrites(0),
+     sendResponseEvent([this]{ sendResponse(); }, name()),
+@@ -66,6 +88,19 @@ DRAMsim3::DRAMsim3(const Params &p) :
+             "Instantiated DRAMsim3 with clock %d ns and queue size %d\n",
+             wrapper.clockPeriod(), wrapper.queueSize());
+ 
++    // Get dram mapping
++    config = wrapper.GetConfig();
++
++    para_rng = std::minstd_rand(0);
++
++    DPRINTF(VNC, "ch_pos: %d 0x%x\n", config->ch_pos, config->ch_mask);
++    DPRINTF(VNC, "ra_pos: %d 0x%x\n", config->ra_pos, config->ra_mask);
++    DPRINTF(VNC, "ba_pos: %d 0x%x\n", config->ba_pos, config->ba_mask);
++    DPRINTF(VNC, "bg_pos: %d 0x%x\n", config->bg_pos, config->bg_mask);
++    DPRINTF(VNC, "ro_pos: %d 0x%x\n", config->ro_pos, config->ro_mask);
++    DPRINTF(VNC, "co_pos: %d 0x%x\n", config->co_pos, config->co_mask);
++    DPRINTF(VNC, "shift bits: %d\n", config->shift_bits);
++
+     // Register a callback to compensate for the destructor not
+     // being called. The callback prints the DRAMsim3 stats.
+     registerExitCallback([this]() { wrapper.printStats(); });
+@@ -150,6 +185,13 @@ DRAMsim3::tick()
+             retryReq = false;
+             port.sendRetryReq();
+         }
++    } else {
++        // erase both hammer and flipped state since we run in a non-timing
++        // CPU that does not execute the callbacks
++        // therefore we don't know if the memory was written in between and
++        // flips should therefore be possible again
++        hammer_count.clear();
++        flipped.clear();
+     }
+ 
+     schedule(tickEvent,
+@@ -262,6 +304,7 @@ DRAMsim3::accessAndRespond(PacketPtr pkt)
+     // do the actual memory access which also turns the packet into a
+     // response
+     access(pkt);
++    
+ 
+     // turn packet around to go back to requestor if response expected
+     if (needsResponse) {
+@@ -289,10 +332,64 @@ DRAMsim3::accessAndRespond(PacketPtr pkt)
+     }
+ }
+ 
+-void DRAMsim3::readComplete(unsigned id, uint64_t addr)
++unsigned long long counts[10] = {0};
++
++inline double DRAMsim3::gen_proba(uint64_t addr) {
++    auto pp = probabilities.find(addr);
++    if (pp == probabilities.end()) {
++        // TODO: which one?
++        std::ranlux48_base gen(addr);
++        probabilities[addr] = std::generate_canonical<double, 10>(gen);
++        return probabilities[addr];
++    } else {
++        return pp->second;
++    }
++}
++
++void DRAMsim3::PARA(int channel, int rank, int bankgroup, int bank, int row) {
++    for (int dist=-5; dist<=5; dist++) {
++        if (dist == 0 || row+dist < 0 || row+dist>=config->rows) {
++            continue;
++        }
++        double rand = std::generate_canonical<double, 10>(para_rng);
++        if (rand > config->para_proba) {
++            continue;
++        }
++        uint64_t target = config->ReverseAddressMapping(channel, rank, bankgroup, bank, row+dist, 0);
++        hammer_count.erase(target);
++    }
++}
++
++// TODO: also do something on refresh
++void DRAMsim3::TRR(int channel, int rank, int bankgroup, int bank, int row) {
++    for (int dist=-5; dist<=5; dist++) {
++        if (dist == 0 || row+dist < 0 || row+dist>=config->rows) {
++            continue;
++        }
++        uint64_t target = config->ReverseAddressMapping(channel, rank, bankgroup, bank, row+dist, 0);
++        if(trr_count.find(target) == trr_count.end()) {
++            trr_count[target] = 1;
++        } else {
++            trr_count[target]++;
++        }
++
++        if (trr_count[target] > config->trr_threshold) {
++            hammer_count.erase(target);
++        }
++    }
++}
++
++void DRAMsim3::readComplete(unsigned id, uint64_t addr, int channel, int rank, int bankgroup, int bank, int row, int column, int bufferhit)
+ {
++    DPRINTF(DRAMsim3, "read complete, address: 0x%x channel %d rank %d bankgroup %d rank %d row %d column %d complete %d rowbuffer hit\n", addr,
++        channel, rank, bankgroup, bank, row, column, bufferhit);
+ 
+-    DPRINTF(DRAMsim3, "Read to address %lld complete\n", addr);
++    //if(bufferhit){
++    //    read_hit++;
++    //}else{
++    //    read_miss++;
++    //}
++    //DPRINTF(DRAMsim3, "Read hit/miss %d/%d\n", read_hit, read_miss);
+ 
+     // get the outstanding reads for the address in question
+     auto p = outstandingReads.find(addr);
+@@ -313,12 +410,133 @@ void DRAMsim3::readComplete(unsigned id, uint64_t addr)
+ 
+     // perform the actual memory access
+     accessAndRespond(pkt);
++
++    counts[channel]++;
++
++    // Memory corruption code
++    bool buffhit = !!bufferhit;
++    hammer_count.erase(addr);
++
++    // no rowhammer effects when rowbuffer hit
++    if (buffhit) {
++        return;
++    }
++
++    for (int dist=-5; dist<=5; dist++) {
++        if (dist == 0 || row+dist < 0 || row+dist>=config->rows) {
++            continue;
++        }
++        int add = 0;
++        switch (abs(dist)) {
++            case 5:
++                add = config->inc_dist_5;
++                break;
++            case 4:
++                add = config->inc_dist_4;
++                break;
++            case 3:
++                add = config->inc_dist_3;
++                break;
++            case 2:
++                add = config->inc_dist_2;
++                break;
++            case 1:
++                add = config->inc_dist_1;
++                break;
++        }
++
++        if (add == 0) {
++            // We don't increment for this distance
++            continue;
++        }
++
++        uint64_t flipped_row_base = config->ReverseAddressMapping(channel, rank, bankgroup, bank, row+dist, 0);
++        if(hammer_count.find(flipped_row_base) == hammer_count.end()) {
++            hammer_count.insert(std::make_pair(flipped_row_base, add));
++            // Don't check against threshold here since we should be way below
++            continue;
++        }
++
++        hammer_count[flipped_row_base] += add;
++        if (hammer_count[flipped_row_base] < config->hc_first) {
++            continue;
++        }
++
++        double row_flip_rate = config->hc_last_bitflip_rate
++                *std::min((hammer_count[flipped_row_base]-config->hc_first)/(config->hc_last-config->hc_first), 1.0)
++                *64; // * bits in quadword, since we decide for one quadword here
++        for (uint64_t quad=flipped_row_base; quad<flipped_row_base+config->row_size; quad+=sizeof(uint64_t)) {
++            if (flipped.find(quad) != flipped.end()) {
++                // already flipped
++                continue;
++            }
++
++            // probabilisticly flip quadword
++            if (gen_proba(quad) > row_flip_rate) {
++                // no flip
++                continue;
++            }
++
++            flipped.insert(quad);
++
++            // this xor makes sure that this is not the same probability as for gen_proba
++            uint64_t mask = 0;
++            if (config->flip_mask) {
++                mask = config->flip_mask;
++            } else {
++                std::mt19937 gen(quad ^ 0xcafecafecafecafe);
++                double flipped_bits_ran = std::generate_canonical<double, 10>(gen);
++                int flipped_bits;
++                if (flipped_bits_ran <= config->proba_1_bit_flipped) {
++                    flipped_bits = 1;
++                } else if (flipped_bits_ran <= config->proba_1_bit_flipped
++                                              +config->proba_2_bit_flipped) {
++                    flipped_bits = 2;
++                } else if (flipped_bits_ran <= config->proba_1_bit_flipped
++                                              +config->proba_2_bit_flipped
++                                              +config->proba_3_bit_flipped) {
++                    flipped_bits = 3;
++                } else {
++                    flipped_bits = 4;
++                }
++                DPRINTF(RubyNetwork, "flipped bits: %d, ran was: %f\n", flipped_bits, flipped_bits_ran);
++
++                std::uniform_int_distribution<> distrib(0, 63);
++                for (int j = 0; j<flipped_bits; j++) {
++                    int pos;
++                    // find position that is not yet taken
++                    do {
++                        pos = distrib(gen);
++                    } while (mask & (((uint64_t)1) << pos));
++                    mask |= ((uint64_t)1) << pos;
++                }
++            }
++            DPRINTF(RubyNetwork, "mask: 0x%x, predefined was: 0x%x\n", mask, config->flip_mask);
++
++            // flip with mask
++            *(uint64_t*)this->toHostAddr(quad) ^= mask;
++        }
++    }
++
++    if (config->para_enabled) {
++        PARA(channel, rank, bankgroup, bank, row);
++    }
++    if (config->trr_enabled) {
++        TRR(channel, rank, bankgroup, bank, row);
++    }
+ }
+ 
+-void DRAMsim3::writeComplete(unsigned id, uint64_t addr)
++void DRAMsim3::writeComplete(unsigned id, uint64_t addr, int channel, int rank, int bankgroup, int bank, int row, int column, int bh)
+ {
++    bool bufferhit = !!bh;
++    DPRINTF(DRAMsim3, "Write to address 0x%x channel %d rank %d bankgroup %d bank %d row %d column %d complete %d rowbuffer hit\n", addr, channel, rank, bankgroup, bank, row, column, bufferhit);
+ 
+-    DPRINTF(DRAMsim3, "Write to address %lld complete\n", addr);
++    //if(bufferhit){
++    //    write_hit++;
++    //}else{
++    //    write_miss++;
++    //}
++    //DPRINTF(DRAMsim3, "Write hit/miss %d/%d\n", write_hit, write_miss);
+ 
+     // get the outstanding reads for the address in question
+     auto p = outstandingWrites.find(addr);
+@@ -335,6 +553,32 @@ void DRAMsim3::writeComplete(unsigned id, uint64_t addr)
+ 
+     if (nbrOutstanding() == 0)
+         signalDrainDone();
++
++    // Memory corruption code
++    hammer_count.erase(addr);
++    for (uint64_t quad=addr; quad<addr+config->row_size; quad+=sizeof(uint64_t)) {
++        flipped.erase(quad);
++    }
++}
++
++void DRAMsim3::refreshComplete(unsigned id, int channel, int bankgroup, int bank)
++{
++
++    int maxcount = 0;;
++    for(auto it= hammer_count.begin(); it != hammer_count.end();){
++        dramsim3::Address a = config->AddressMapping(it->first);
++        if((a.channel == channel) &&
++           ((a.bankgroup == bankgroup) || (bankgroup == -1)) &&
++           ((a.bank == bank) || (bank == -1))){
++                maxcount = it->second > maxcount ? it->second : maxcount;
++                // NOTE: flipped is not erased here since we dont want to flip mutliple times
++                it = hammer_count.erase(it);
++        } else {
++            it++;
++        }
++    }
++    DPRINTF(VNC, "Refresh at channel %d bankgroup %d bank %d complete, max hammer %d, accesses before refresh: %lld\n", channel, bankgroup, bank, maxcount, counts[channel]);
++    counts[channel] = 0;
+ }
+ 
+ Port&
+diff --git a/src/mem/dramsim3.hh b/src/mem/dramsim3.hh
+index f8fd54a263..cb4af4e69e 100644
+--- a/src/mem/dramsim3.hh
++++ b/src/mem/dramsim3.hh
+@@ -45,12 +45,13 @@
+ 
+ #include <functional>
+ #include <queue>
++#include <random>
+ #include <unordered_map>
++#include <tuple>
+ 
+ #include "mem/abstract_mem.hh"
+ #include "mem/dramsim3_wrapper.hh"
+ #include "mem/qport.hh"
+-#include "params/DRAMsim3.hh"
+ 
+ namespace gem5
+ {
+@@ -94,11 +95,19 @@ class DRAMsim3 : public AbstractMemory
+ 
+     MemoryPort port;
+ 
++    std::unordered_map<uint64_t,double> hammer_count;
++    std::unordered_map<uint64_t,double> probabilities;
++    std::set<uint64_t> flipped;
++    std::minstd_rand para_rng;
++
++    dramsim3::Config* config;
++
+     /**
+      * Callback functions
+      */
+-    std::function<void(uint64_t)> read_cb;
+-    std::function<void(uint64_t)> write_cb;
++    std::function<void(uint64_t, int, int, int, int, int, int, int)> read_cb;
++    std::function<void(uint64_t, int, int, int, int, int, int, int)> write_cb;
++    std::function<void(int, int, int)> refresh_cb;
+ 
+     /**
+      * The actual DRAMsim3 wrapper
+@@ -191,7 +200,7 @@ class DRAMsim3 : public AbstractMemory
+      * @param addr Address of the request
+      * @param cycle Internal cycle count of DRAMsim3
+      */
+-    void readComplete(unsigned id, uint64_t addr);
++    void readComplete(unsigned id, uint64_t addr, int channel, int rank, int bankgroup, int bank, int row, int column, int bufferhit);
+ 
+     /**
+      * Write completion callback.
+@@ -200,7 +209,24 @@ class DRAMsim3 : public AbstractMemory
+      * @param addr Address of the request
+      * @param cycle Internal cycle count of DRAMsim3
+      */
+-    void writeComplete(unsigned id, uint64_t addr);
++    void writeComplete(unsigned id, uint64_t addr, int channel, int rank, int bankgroup, int bank, int row, int column, int bufferhit);
++
++     /**
++     * Refresh competion callback.
++     *
++     * @param id Channel id of the responder
++     * @param addr Address of the request
++     * @param cycle Internal cycle count of DRAMsim3
++     */
++    void refreshComplete(unsigned id, int channel, int bankgroup, int bank);
++
++
++    void PARA(int channel, int rank, int bankgroup, int bank, int row);
++
++    std::unordered_map<uint64_t,int> trr_count;
++    void TRR(int channel, int rank, int bankgroup, int bank, int row);
++
++    double gen_proba(uint64_t addr);
+ 
+     DrainState drain() override;
+ 
+diff --git a/src/mem/dramsim3_wrapper.cc b/src/mem/dramsim3_wrapper.cc
+index 89e49017a9..a7717b8fc5 100644
+--- a/src/mem/dramsim3_wrapper.cc
++++ b/src/mem/dramsim3_wrapper.cc
+@@ -63,10 +63,11 @@ namespace memory
+ 
+ DRAMsim3Wrapper::DRAMsim3Wrapper(const std::string& config_file,
+                                  const std::string& working_dir,
+-                                 std::function<void(uint64_t)> read_cb,
+-                                 std::function<void(uint64_t)> write_cb) :
++                                 std::function<void(uint64_t, int, int, int,int, int, int, int)> read_cb,
++                                 std::function<void(uint64_t, int, int, int, int, int, int, int)> write_cb,
++                                 std::function<void(int, int, int)> refresh_cb) :
+     dramsim(dramsim3::GetMemorySystem(config_file, working_dir,
+-                                       read_cb, write_cb)),
++                                       read_cb, write_cb,refresh_cb)),
+     _clockPeriod(0.0), _queueSize(0), _burstSize(0)
+ {
+     // there is no way of getting DRAMsim3 to tell us what frequency
+@@ -100,6 +101,11 @@ DRAMsim3Wrapper::~DRAMsim3Wrapper()
+     delete dramsim;
+ }
+ 
++dramsim3::Config* DRAMsim3Wrapper::GetConfig()
++{
++    return dramsim->GetConfig();
++}
++
+ 
+ void
+ DRAMsim3Wrapper::printStats()
+@@ -114,10 +120,11 @@ DRAMsim3Wrapper::resetStats()
+ }
+ 
+ void
+-DRAMsim3Wrapper::setCallbacks(std::function<void(uint64_t)> read_complete,
+-                              std::function<void(uint64_t)> write_complete)
++DRAMsim3Wrapper::setCallbacks(std::function<void(uint64_t, int, int, int, int, int, int, int)> read_complete,
++                              std::function<void(uint64_t, int, int, int, int, int, int, int)> write_complete,
++                              std::function<void(int, int, int)> refresh_complete)
+ {
+-    dramsim->RegisterCallbacks(read_complete, write_complete);
++    dramsim->RegisterCallbacks(read_complete, write_complete, refresh_complete);
+ }
+ 
+ bool
+diff --git a/src/mem/dramsim3_wrapper.hh b/src/mem/dramsim3_wrapper.hh
+index 41b1088e79..c80ad6637d 100644
+--- a/src/mem/dramsim3_wrapper.hh
++++ b/src/mem/dramsim3_wrapper.hh
+@@ -46,6 +46,9 @@
+ 
+ #include <functional>
+ #include <string>
++#include "params/DRAMsim3.hh"
++#include "configuration.h"
++
+ 
+ /**
+  * Forward declaration to avoid includes
+@@ -98,10 +101,13 @@ class DRAMsim3Wrapper
+      */
+     DRAMsim3Wrapper(const std::string& config_file,
+                     const std::string& working_dir,
+-                    std::function<void(uint64_t)> read_cb,
+-                    std::function<void(uint64_t)> write_cb);
++                    std::function<void(uint64_t, int, int, int, int, int, int, int)> read_cb,
++                    std::function<void(uint64_t, int, int, int, int, int, int, int)> write_cb,
++                    std::function<void(int, int, int)> refresh_cb);
+     ~DRAMsim3Wrapper();
+ 
++    dramsim3::Config* GetConfig();
++
+     /**
+      * Print the stats gathered in DRAMsim3.
+      */
+@@ -117,9 +123,11 @@ class DRAMsim3Wrapper
+      *
+      * @param read_callback Callback used for read completions
+      * @param write_callback Callback used for write completions
++     * @param refresh_callback Callback used for refresh completions
+      */
+-    void setCallbacks(std::function<void(uint64_t)> read_complete,
+-                      std::function<void(uint64_t)> write_complete);
++    void setCallbacks(std::function<void(uint64_t, int, int, int, int, int, int, int)> read_complete,
++                      std::function<void(uint64_t, int, int, int, int, int, int, int)> write_complete,
++                      std::function<void(int, int, int)> refresh_complete);
+ 
+     /**
+      * Determine if the controller can accept a new packet or not.
+diff --git a/src/python/gem5/components/memory/dramsim_3.py b/src/python/gem5/components/memory/dramsim_3.py
+index b7eba919fc..c349cc8c79 100644
+--- a/src/python/gem5/components/memory/dramsim_3.py
++++ b/src/python/gem5/components/memory/dramsim_3.py
+@@ -26,12 +26,18 @@ def config_ds3(mem_type: str, num_chnls: int) -> Tuple[str, str]:
+ 
+     # TODO: We need a better solution to this. This hard-coding is not
+     # an acceptable solution.
++    # dramsim_3_dir = os.path.join(
++    #     os.path.dirname(os.path.abspath(__file__)),
++    #     os.pardir,
++    #     os.pardir,
++    #     os.pardir,
++    #     "ext",
++    #     "DRAMsim3",
++    # )
+     dramsim_3_dir = os.path.join(
+-        os.path.dirname(os.path.abspath(__file__)),
+-        os.pardir,
+-        os.pardir,
+-        os.pardir,
++        ".",
+         "ext",
++        "dramsim3",
+         "DRAMsim3",
+     )
+ 
+@@ -47,11 +53,11 @@ def config_ds3(mem_type: str, num_chnls: int) -> Tuple[str, str]:
+             "Please navigate to `ext` and run:\n"
+             "git clone git@github.com:umd-memsys/DRAMsim3.git"
+         )
+-    elif os.path.isdir(dramsim_3_mem_configs):
++    elif not os.path.isdir(dramsim_3_mem_configs):
+         raise Exception(
+             "The `ext/DRAMsim3/configs` directory cannot be found."
+         )
+-    elif os.path.isfile(input_file):
++    elif not os.path.isfile(input_file):
+         raise Exception(
+             "The configuration file '" + input_file + "' cannot " " be found."
+         )
+@@ -95,7 +101,8 @@ class SingleChannel(AbstractMemorySystem):
+         :param num_chnls: The number of channels.
+         """
+         super().__init__()
+-        self.mem_ctrl = DRAMSim3MemCtrl(mem_type, 1)
++        # TODO: two channels?
++        self.mem_ctrl = DRAMSim3MemCtrl(mem_type, 2)
+         self._size = toMemorySize(size)
+         if not size:
+             raise NotImplementedError(
+@@ -120,7 +127,9 @@ class SingleChannel(AbstractMemorySystem):
+ 
+     @overrides(AbstractMemorySystem)
+     def set_memory_range(self, ranges: List[AddrRange]) -> None:
+-        if len(ranges != 1) or ranges[0].size != self._size:
++        if len(ranges) != 1 or ranges[0].size() != self._size:
++            # TODO: something is totally broken with this check
++            # it works with two channels
+             raise Exception(
+                 "Single channel DRAMSim memory controller requires a single "
+                 "range which matches the memory's size."
+@@ -145,7 +154,7 @@ def SingleChannelDDR4_2400(size: Optional[str] = "1024MB") -> SingleChannel:
+ 
+     :param size: The size of the memory system. Default value of 1024MB.
+     """
+-    return SingleChannel("DDR4_4Gb_x8_2400", size)
++    return SingleChannel("DDR4_8Gb_x8_2400", size)
+ 
+ 
+ def SingleChannelLPDDR3_1600(size: Optional[str] = "256MB") -> SingleChannel:
+diff --git a/src/python/gem5/components/processors/simple_switchable_processor.py b/src/python/gem5/components/processors/simple_switchable_processor.py
+index 56603fa98b..642e2880d3 100644
+--- a/src/python/gem5/components/processors/simple_switchable_processor.py
++++ b/src/python/gem5/components/processors/simple_switchable_processor.py
+@@ -107,9 +107,12 @@ class SimpleSwitchableProcessor(SwitchableProcessor):
+ 
+     def switch(self):
+         """Switches to the "switched out" cores."""
++        print("switching cpu switchable processor")
++        print("old cpu:", str(self._current_cores[0].get_type()))
+         if self._current_is_start:
+             self.switch_to_processor(self._switch_key)
+         else:
+             self.switch_to_processor(self._start_key)
++        print("new cpu:", str(self._current_cores[0].get_type()))
+ 
+         self._current_is_start = not self._current_is_start
+diff --git a/tests/test-progs/hello/src/Makefile.x86 b/tests/test-progs/hello/src/Makefile.x86
+index 70d89b0463..82e40f1d62 100644
+--- a/tests/test-progs/hello/src/Makefile.x86
++++ b/tests/test-progs/hello/src/Makefile.x86
+@@ -1,4 +1,7 @@
+-all: hello64-static hello64-dynamic hello32-static
++all: hello64-static hello64-dynamic rowhammer_test
++
++rowhammer_test: rowhammer_test.c dockcross-x64
++	./dockcross-x64 bash -c '$$CC rowhammer_test.c -o rowhammer_test'
+ 
+ hello64-static: hello.c dockcross-x64
+ 	./dockcross-x64 bash -c '$$CC hello.c -o hello64-static -static'
+diff --git a/tests/test-progs/hello/src/hello.c b/tests/test-progs/hello/src/hello.c
+index 866e5622eb..a11c6c5183 100644
+--- a/tests/test-progs/hello/src/hello.c
++++ b/tests/test-progs/hello/src/hello.c
+@@ -26,10 +26,60 @@
+  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
++#include <stdint.h>
+ #include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
+ 
+ int main(int argc, char* argv[])
+ {
+-    printf("Hello world!\n");
+-    return 0;
++    printf("aaaa");
++    printf("aaaa");
++    return 1;
++
++    /* int size = 4096*100; */
++    /* char* cool = malloc(size); */
++    /* /\* memset(cool, 0x41, size); *\/ */
++    /* /\* puts("jooo"); *\/ */
++    /* /\* return 0; *\/ */
++
++    /* char* target = cool +4069*50; */
++    /* /\* char* target = cool; *\/ */
++    /* *target = 0x41; */
++    /* if (*target != 0x41) { */
++    /*     printf("this should have not happened\n"); */
++    /*     return 2; */
++    /* } */
++
++    /* printf("target: %zx\n", target); */
++    /* /\* return 1; *\/ */
++
++    /* /\* uint64_t t = 0xeffffffffffff; *\/ */
++    /* /\* uint64_t t = 0xffffff; *\/ */
++    /* /\* printf("--------------------------------t%zx\n", t); *\/ */
++    /* /\* return 0; *\/ */
++
++    /* for (int i = 0; i < 4096*10; i++) */
++    /* { */
++    /*     /\* printf("%d\n\n\n\n\n", i); *\/ */
++    /*     /\* asm volatile ("clflush 0(%0)\n" *\/ */
++    /*     /\* : *\/ */
++    /*     /\* : "c" (target) *\/ */
++    /*     /\* : "rax"); *\/ */
++    /*     asm volatile ("clflush 0(%0)\n \ */
++    /*                  movq (%0), %%rax\n" */
++    /*      : */
++    /*      : "c" (target) */
++    /*      : "rax"); */
++
++    /*     if (*target != 0x41) { */
++    /*         return 1; */
++    /*     } */
++
++    /*     //asm volatile ("clflush 0(%0)\n" */
++    /*     //: */
++    /*     //: "c" (cool+4096*5) */
++    /*     //: "rax"); */
++    /* } */
++    /* return 0; */
+ }
+-- 
+2.40.1
+
