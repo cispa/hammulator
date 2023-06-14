@@ -49,7 +49,6 @@ dramsim3:
 	cmake -S gem5/ext/dramsim3/DRAMsim3 -B gem5/ext/dramsim3/DRAMsim3/build
 	make -C gem5/ext/dramsim3/DRAMsim3/build -j$(shell nproc)
 
-# TODO: remove
 compile_commands:
 	yes | scons -C gem5 build/X86/compile_commands.json -j$(shell nproc)
 
@@ -67,10 +66,10 @@ CXX=g++
 
 # TODO: very if everything is needed here
 build/libswapcpu.o: libswapcpu.c
-	$(CC) -c -fPIC libswapcpu.c -o build/libswapcpu.o -I$(GEM5_HOME)/include -I$(GEM5_HOME)/util/m5/src -L$(GEM5_HOME)/util/m5/build/$(TARGET_ISA)/out -lm5 -static
+	$(CC) -c -fPIC libswapcpu.c -o build/libswapcpu.o -I$(GEM5_HOME)/include -I$(GEM5_HOME)/util/m5/src $(CFLAGS)
 
 build/libswapcpu.so: build/libswapcpu.o
-	$(CC) -shared -Wl,-soname,libswapcpu.so -o build/libswapcpu.so build/libswapcpu.o -I$(GEM5_HOME)/include -I$(GEM5_HOME)/util/m5/src -L$(GEM5_HOME)/util/m5/build/$(TARGET_ISA)/out -lm5 -static
+	$(CC) -shared -Wl,-soname,libswapcpu.so -o build/libswapcpu.so build/libswapcpu.o
 
 build/libswapcpu.a: build/libswapcpu.o
 	ar rcs build/libswapcpu.a build/libswapcpu.o
