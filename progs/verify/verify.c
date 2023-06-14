@@ -127,7 +127,7 @@ int main()
 
     // TODO: why prot_write needed?
     int mmap_size = dist*30;
-    c = mmap(0, mmap_size, PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, 0, 0);
+    c = (uint8_t*)mmap(0, mmap_size, PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, 0, 0);
 
     printf("after mmap... c: %8p\n", c);
 

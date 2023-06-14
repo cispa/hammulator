@@ -18,9 +18,7 @@
 #include <algorithm>
 #include <vector>
 
-#include <signal.h>
-#include <gem5/m5ops.h>
-#include <m5_mmap.h>
+#include "libswapcpu.h"
 
 const size_t memory_size = ((size_t) 90) << 20;
 
@@ -44,35 +42,6 @@ struct HammerAddrs {
   uint64_t agg2;
   uint64_t victim;
 };
-
-int original_cpu = 1;
-int first = 1;
-
-void swap_cpu() {
-  // TODO: below code is unreliable
-  system("m5 exit");
-  // // TODO: fix this, below call does not work on first time
-  // // probably some initialization code
-  // if (!original_cpu && first) {
-  //   system("m5 exit");
-  //   first = 0;
-  // } else {
-  //   m5_exit_addr(0);
-  // }
-  original_cpu = !original_cpu;
-}
-
-void sigint(int a) {
-  if (!original_cpu) {
-    printf("switching back to original cpu\n");
-    swap_cpu();
-  }
-  exit(1);
-}
-
-void asigint() {
-  sigint(1);
-}
 
 void mount_proc() {
   int rc = mkdir("/proc", 0777);
@@ -219,9 +188,9 @@ class BitFlipper {
       clflush((uintptr_t) addr);
     }
 
-    swap_cpu();
+    libswapcpu_swapcpu();
     hammer_pair();
-    swap_cpu();
+    libswapcpu_swapcpu();
 
     // Check for bit flips.
     bool seen_flip = false;
@@ -730,11 +699,11 @@ void main_prog(int test_mode, const char *addrs_file) {
   if (test_mode) {
     flip_bit();
   } else {
-    swap_cpu();
+    libswapcpu_swapcpu();
     printf("Trying to cause bit flip...\n");
     for (int i = 0; i < 1; i++)
       flipper->hammer_pair();
-    swap_cpu();
+    libswapcpu_swapcpu();
   }
 
   printf("Searching for modified PTE...\n");
@@ -801,10 +770,7 @@ void main_prog(int test_mode, const char *addrs_file) {
 }
 
 int main(int argc, char **argv) {
-  map_m5_mem();
-  signal(SIGINT, sigint);
-  signal(SIGABRT, sigint);
-  atexit(asigint);
+  libswapcpu_init();
 
   setvbuf(stdout, NULL, _IONBF, 0);
 

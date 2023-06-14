@@ -20,6 +20,10 @@ void onexit() {
   exit(1);
 }
 
+void _onexit(int a) {
+    onexit();
+}
+
 void libswapcpu_init() {
     // This check should usually work.
     syscall_emulation = getpid() == 100;
@@ -31,8 +35,8 @@ void libswapcpu_init() {
         map_m5_mem();
 
         // Mount signals so that we switch back to the initial CPU after running/crashing binary in full-system mode.
-        signal(SIGINT, onexit);
-        signal(SIGABRT, onexit);
+        signal(SIGINT, _onexit);
+        signal(SIGABRT, _onexit);
         atexit(onexit);
     }
 }
