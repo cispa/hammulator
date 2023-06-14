@@ -1,6 +1,5 @@
 # TODO: check if we can build with docker image
 # TODO: check if the privesc exploit is faster with more ram
-# TODO: write a nice simple script and check if static needed for syscall emulation (probably not)
 # TODO: write a lib to swap cpus
 
 # PT privesc exploit
@@ -103,7 +102,7 @@ build/tmp.img: comp
 ################################################################################
 
 # NOTE: img checkpoint needs recreation when ubuntu img changes
-dramsim-create-checkpoint: build/tmp.img
+fs-create-checkpoint: build/tmp.img
 	rm -rf "$(outdir)"
 	# TODO: why does kvm not work here?
 	build/X86/gem5.opt $(gem5_args) gem5/configs/example/fs.py $(fs-args) --cpu-type=X86AtomicSimpleCPU --checkpoint-at-end
@@ -111,7 +110,7 @@ dramsim-create-checkpoint: build/tmp.img
 # TODO: sudo sysctl -w kernel.perf_event_paranoid=1
 # TODO: why is kvm slow?
 # NOTE: it may be that this only works with intel cpus
-dramsim-restore: build/tmp.img
+fs-restore: build/tmp.img
 	build/X86/gem5.opt $(gem5_args) gem5/configs/example/fs.py $(fs-args) --cpu-type=X86KvmCPU -r 1 --restore-with-cpu=X86KvmCPU --repeat-switch 1
 
 verify: build/tmp_root/verify
@@ -122,6 +121,9 @@ rsa: build/tmp_root/rsa
 
 rsa-public: build/tmp_root/rsa-public
 	build/X86/gem5.opt $(gem5_args) gem5/configs/example/se.py $(se-args) --cmd=build/tmp_root/rsa-public
+
+se:
+	build/X86/gem5.opt $(gem5_args) gem5/configs/example/se.py $(se-args) --cmd="$(CMD)"
 
 kvm: build/tmp.img
 	build/X86/gem5.opt $(gem5_args) gem5/configs/example/fs.py --cpu-type=X86KvmCPU --caches -n 8 --kernel=./x86-linux-kernel-5.4.49 --disk-image=img/spec-2017-patched --disk-image=./build/tmp.img --script img/sleep.sh

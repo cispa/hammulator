@@ -60,8 +60,14 @@ For that you need full system emulation.
 Syscall emulation requires minimal setup, therefore it is the suggested method to proceed for becoming familiar with Hammulator. 
 
 ## Syscall emulation
-Syscall emulation can either be directly used through the `se.py` script provided by gem5 or by the convenience Makefile target provided by Hammulator.
-TODO
+
+Syscall emulation can directly be used through the `se.sh` script:
+```
+./se.sh path/to/binary
+```
+
+For everything more than quick experimenting we recommend extending the Makefile by a new target for your binary.
+The verify target(s) should serve as an example.
 
 ## Full system emulation
 
@@ -82,7 +88,7 @@ Therefore, we suggest to first create a checkpoint of the system with a less per
 Checkpoint creation is easy with the following Makefile target:
 
 ``` sh
-make dramsim-create-checkpoint
+make fs-create-checkpoint
 ```
 
 Note that this process can take up to an hour and needs to be done for each memory size. 
@@ -90,7 +96,7 @@ The Makefile thereby handles moving the checkpoints for you.
 
 To monitor what is going on during the checkpoint creation launch above command with the tmux wrapper script:
 ``` sh
-./tmux.sh make dramsim-create-checkpoint
+./tmux.sh make fs-create-checkpoint
 ```
 
 ### Restoring a Checkpoint
@@ -98,14 +104,14 @@ To monitor what is going on during the checkpoint creation launch above command 
 Restoring a checkpoint is as easy as:
 
 ``` sh
-make dramsim-create-checkpoint
+make fs-create-checkpoint
 ```
 
 Note that this command only starts gem5 and does not attach to stdout/stdin.
 For that either run `m5term localhost 3456`[^3] after starting the simulator or run above command with tmux wrapper:
 
 ``` sh
-./tmux.sh make dramsim-create-checkpoint
+./tmux.sh make fs-create-checkpoint
 ```
 
 In either case you should find yourself in a Gnu/Linux shell now.
@@ -133,7 +139,7 @@ All Makefile targets support debug flags.
 To, e.g., run full system emulation with the debug flag `DRAMsim3` execute the following command: 
 
 ``` sh
-./tmux.sh make dramsim-restore DEBUG=DRAMsim3
+./tmux.sh make fs-restore DEBUG=DRAMsim3
 ```
 
 The available flags can be checked with `build/X86/gem5.opt --debug-help`.
