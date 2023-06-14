@@ -29,11 +29,13 @@ void _onexit(int a) {
 void libswapcpu_init() {
     // This check should usually work.
     syscall_emulation = getpid() == 100;
+
     if (syscall_emulation) {
         printf("Detected that the emulator runs in syscall emulation mode through PID.\n");
     } else {
         printf("Detected that the emulator runs in full-system emulation mode through PID.\n");
-        // Setup memory region used for swapping cpus.
+
+        // Setup memory region used for swapping cpus in FS.
         map_m5_mem();
 
         // Mount signals so that we switch back to the initial CPU after running/crashing binary in full-system mode.
@@ -49,26 +51,28 @@ void libswapcpu_swapcpu() {
         exit(1);
     }
 
+    // Three possibilities here:
+    // universal but slowish:                   system("m5 exit");
+    // non-KVM only, special instruction, fast: m5_exit(0);
+    // FS only, special memory region, fast:    m5_exit_addr(0);
+
     if (syscall_emulation) {
+        // NOTE: We assume here that syscall emulation never uses KVM.
+        // If it would we would need another check here and then use
+        // the system function to swap when KVM.
         m5_exit(0);
     } else {
-        // TODO: below code is unreliable
-        system("m5 exit");
-        /* // KVM can not use special instruction */
-        /* m5_exit_addr(0); */
+        // TODO: m5_exit_addr does not work for the first 2 swaps
+        // for whatever reason.
+        if (using_initial_cpu) {
+            // Using KVM CPU.
+            system("m5 exit");
+        } else {
+            // Using slower CPU.
+            // TODO: why is this unreliable? Why cant we use it with KVM too?
+            m5_exit_addr(0);
+        }
     }
-    /* // TODO: fix this, below call does not work on first time */
-    /* // probably some initialization code */
-    /* if (!original_cpu && first) { */
-    /*   system("m5 exit"); */
-    /*   first = 0; */
-    /* } else { */
-    /*   if (!syscall_emulation) { */
-    /*     // KVM can not use special instruction */
-    /*     m5_exit_addr(0); */
-    /*   } else { */
-    /*     m5_exit(0); */
-    /*   } */
-    /* } */
+
     using_initial_cpu = !using_initial_cpu;
 }

@@ -39,7 +39,7 @@ CXX=g++
 ################################################################################
 
 # This builds gem5.opt with dramsim3.
-hammulator: dramsim3 m5 build/libswapcpu.a
+hammulator: dramsim3 m5
 	yes | scons -C gem5 build/X86/gem5.opt -j$(shell nproc)
 
 # NOTE: Use this when developing for faster linkage.
@@ -66,13 +66,18 @@ compile_commands:
 
 ################################################################################
 
+fix_perf:
+	sudo sysctl -w kernel.perf_event_paranoid=1
+
+################################################################################
+
 # A simple binary that tests for Rowhammer bit flips.
+build/tmp_root/verify: progs/verify/verify.c build/libswapcpu.a
 	mkdir -p build/tmp_root
-build/tmp_root/verify: progs/verify/verify.c
 	$(CXX) -o build/tmp_root/verify progs/verify/verify.c $(CFLAGS) $(LDFLAGS)
 
 # The privelege escalation binary for the page table exploit by Google Project Zero.
-build/tmp_root/priv: progs/privesc/privesc.cc
+build/tmp_root/priv: progs/privesc/privesc.cc build/libswapcpu.a
 	mkdir -p build/tmp_root
 	$(CXX) -o build/tmp_root/priv progs/privesc/privesc.cc $(CFLAGS) $(LDFLAGS)
 
