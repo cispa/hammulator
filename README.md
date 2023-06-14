@@ -59,6 +59,8 @@ OS APIs are used, therefore, e.g., no page table can be hammered.
 For that you need full system emulation.
 Syscall emulation requires minimal setup, therefore it is the suggested method to proceed for becoming familiar with Hammulator. 
 
+Note [this issue](https://github.com/cispa/hammulator/issues/1) when you encounter problems in this section specifying that something is wrong with performance counters.
+
 ## Syscall emulation
 
 Syscall emulation can directly be used through the `se.sh` script:

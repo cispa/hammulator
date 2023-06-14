@@ -1,5 +1,5 @@
-# TODO: check if we can build with docker image
-# TODO: check if the privesc exploit is faster with more ram
+# TODO: check if the privesc exploit is faster with more ram, why is kvm slow?
+# TODO: readme, add notes about dram config
 
 # PT privesc exploit
 cpu-clock := 2GHz
@@ -22,9 +22,6 @@ ifdef DEBUG
 # args += --debug-file=debug
 gem5_args += --debug-flags="$(DEBUG)"
 endif
-
-# TODO: find some way to execute a command in simulator
-# one way would be to create a checkpoint that mounts and runs a script and checkpoint before that
 
 fs-args := $(args) --kernel=./x86-linux-kernel-5.4.49 --disk-image=./img/x86-ubuntu-18.04-patched.img --disk-image=./build/tmp.img
 se-args := $(args) --cpu-type=X86AtomicSimpleCPU --repeat-switch 1
@@ -110,8 +107,6 @@ fs-create-checkpoint: build/tmp.img
 	# TODO: why does kvm not work here?
 	build/X86/gem5.opt $(gem5_args) gem5/configs/example/fs.py $(fs-args) --cpu-type=X86AtomicSimpleCPU --checkpoint-at-end
 
-# TODO: sudo sysctl -w kernel.perf_event_paranoid=1
-# TODO: why is kvm slow?
 # NOTE: it may be that this only works with intel cpus
 fs-restore: build/tmp.img
 	build/X86/gem5.opt $(gem5_args) gem5/configs/example/fs.py $(fs-args) --cpu-type=X86KvmCPU -r 1 --restore-with-cpu=X86KvmCPU --repeat-switch 1
