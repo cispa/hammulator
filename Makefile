@@ -1,5 +1,7 @@
 # TODO: check if we can build with docker image
 # TODO: check if the privesc exploit is faster with more ram
+# TODO: write a nice simple script and check if static needed for syscall emulation (probably not)
+# TODO: write a lib to swap cpus
 
 # PT privesc exploit
 cpu-clock := 2GHz
