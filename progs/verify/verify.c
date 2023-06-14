@@ -1,31 +1,3 @@
-/*
- * Copyright (c) 2006 The Regents of The University of Michigan
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met: redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer;
- * redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the distribution;
- * neither the name of the copyright holders nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
 #include <assert.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -34,9 +6,8 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
-#include <signal.h>
-#include <gem5/m5ops.h>
-#include <m5_mmap.h>
+
+#include "libswapcpu.h"
 
 static inline uint64_t rdtsc() {
   uint64_t a = 0, d = 0;
@@ -114,8 +85,6 @@ uint8_t* c;
 // NOTE: this prevents non-hammered data from being in the cache at the beginning
 /* char __attribute__((aligned(4096))) c[dist * 10] = {co}; */
 
-int syscall_emulation;
-
 void scan(uint8_t* base) {
     uint64_t* b = (uint64_t*) base;
     int flips[5] = {0};
@@ -149,57 +118,10 @@ void print_address(uint8_t* a) {
     printf("\n");
 }
 
-int original_cpu = 1;
-int first = 1;
-
-void swap_cpu() {
-  if (!syscall_emulation) {
-    // TODO: below code is unreliable
-    system("m5 exit");
-    /* // KVM can not use special instruction */
-    /* m5_exit_addr(0); */
-  } else {
-    m5_exit(0);
-  }
-  /* // TODO: fix this, below call does not work on first time */
-  /* // probably some initialization code */
-  /* if (!original_cpu && first) { */
-  /*   system("m5 exit"); */
-  /*   first = 0; */
-  /* } else { */
-  /*   if (!syscall_emulation) { */
-  /*     // KVM can not use special instruction */
-  /*     m5_exit_addr(0); */
-  /*   } else { */
-  /*     m5_exit(0); */
-  /*   } */
-  /* } */
-  original_cpu = !original_cpu;
-}
-
-void sigint() {
-  // se terminates so no switching back
-  if (!original_cpu && !syscall_emulation) {
-    printf("switching back to original cpu\n");
-    swap_cpu();
-  }
-  exit(1);
-}
-
 int main()
 {
-    signal(SIGINT, sigint);
-    signal(SIGABRT, sigint);
-    atexit(sigint);
+    libswapcpu_init();
 
-    syscall_emulation = getpid() == 100;
-    if (syscall_emulation) {
-        printf("running in syscall emulation\n");
-    } else {
-        printf("running in full-system emulation\n");
-        // used for swapping cpus
-        map_m5_mem();
-    }
     setvbuf(stdout, NULL, _IONBF, 0);
     printf("starting....\n");
 
@@ -248,7 +170,7 @@ int main()
 
     // TODO: try out switch cpu
     printf("switching to timing cpu...\n");
-    swap_cpu();
+    libswapcpu_swapcpu();
     printf("now hammering\n");
 
     for (size_t i = 0; i < 6000; i++)
@@ -259,7 +181,7 @@ int main()
     }
 
     printf("swapping again. Does it work afterwards?\n");
-    swap_cpu();
+    libswapcpu_swapcpu();
 
     // hammered rows should not change
     printf("Checking hammered rows:\n");

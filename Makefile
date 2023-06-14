@@ -1,6 +1,5 @@
 # TODO: check if we can build with docker image
 # TODO: check if the privesc exploit is faster with more ram
-# TODO: write a lib to swap cpus
 
 # PT privesc exploit
 cpu-clock := 2GHz
@@ -59,15 +58,27 @@ compile_commands:
 TARGET_ISA=x86
 GEM5_HOME=$(realpath ./gem5)
 $(info GEM5_HOME is $(GEM5_HOME))
-# TODO: the last one seems to be wrong
-# should one call map_m5_mem???
-CFLAGS += -I$(GEM5_HOME)/include -I$(GEM5_HOME)/util/m5/src -static -Wall -O2
-LDFLAGS += -L$(GEM5_HOME)/util/m5/build/$(TARGET_ISA)/out -lm5
+CFLAGS += -static -Wall -O2
+LDFLAGS += -Lbuild -lswapcpu -L$(GEM5_HOME)/util/m5/build/$(TARGET_ISA)/out -lm5
 CC=gcc
 CXX=g++
 
+################################################################################
+
+# TODO: very if everything is needed here
+build/libswapcpu.o: libswapcpu.c
+	$(CC) -c -fPIC libswapcpu.c -o build/libswapcpu.o -I$(GEM5_HOME)/include -I$(GEM5_HOME)/util/m5/src -L$(GEM5_HOME)/util/m5/build/$(TARGET_ISA)/out -lm5 -static
+
+build/libswapcpu.so: build/libswapcpu.o
+	$(CC) -shared -Wl,-soname,libswapcpu.so -o build/libswapcpu.so build/libswapcpu.o -I$(GEM5_HOME)/include -I$(GEM5_HOME)/util/m5/src -L$(GEM5_HOME)/util/m5/build/$(TARGET_ISA)/out -lm5 -static
+
+build/libswapcpu.a: build/libswapcpu.o
+	ar rcs build/libswapcpu.a build/libswapcpu.o
+
+################################################################################
+
 # A simple binary that tests for Rowhammer bit flips.
-build/tmp_root/verify: progs/verify/verify.c
+build/tmp_root/verify: progs/verify/verify.c build/libswapcpu.a
 	mkdir -p build/tmp_root
 	$(CC) -o build/tmp_root/verify progs/verify/verify.c $(CFLAGS) $(LDFLAGS)
 
