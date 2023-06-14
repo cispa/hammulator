@@ -62,8 +62,6 @@ void libswapcpu_swapcpu() {
         // the system function to swap when KVM.
         m5_exit(0);
     } else {
-        // TODO: m5_exit_addr does not work for the first 2 swaps
-        // for whatever reason.
         if (using_initial_cpu) {
             // Using KVM CPU.
             system("m5 exit");
