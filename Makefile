@@ -48,14 +48,12 @@ hammulator: dramsim3 m5 build/libswapcpu.a
 # NOTE: Use this when developing for faster linkage.
 # requires the mold linker
 hammulator-mold:
-	# TODO: check this maxdrift and implicit
-	yes | scons -C gem5 --linker=mold --max-drift=10 --implicit-deps-changed build/X86/gem5.opt -j$(shell nproc)
+	yes | scons -C gem5 --linker=mold build/X86/gem5.opt -j$(shell nproc)
 
 # This builds m5term and the cpu swapping libraries.
 m5:
 	scons -C gem5/util/m5 build/x86/out/m5
 
-# TODO: very if everything is needed here
 build/libswapcpu.o: libswapcpu.c m5
 	$(CXX) -c -fPIC libswapcpu.c -o build/libswapcpu.o -I$(GEM5_HOME)/include -I$(GEM5_HOME)/util/m5/src $(CFLAGS)
 
