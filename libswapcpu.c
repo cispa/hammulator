@@ -11,6 +11,8 @@
 int syscall_emulation = -1;
 int using_initial_cpu = 1;
 
+// TODO: Something is broken here in full system emulation.
+// priv does not terminate
 void onexit() {
   // se terminates so no switching back
   if (!using_initial_cpu && !syscall_emulation) {

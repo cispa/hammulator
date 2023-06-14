@@ -59,9 +59,6 @@ m5:
 build/libswapcpu.o: libswapcpu.c m5
 	$(CXX) -c -fPIC libswapcpu.c -o build/libswapcpu.o -I$(GEM5_HOME)/include -I$(GEM5_HOME)/util/m5/src $(CFLAGS)
 
-build/libswapcpu.so: build/libswapcpu.o
-	$(CXX) -shared -Wl,-soname,libswapcpu.so -o build/libswapcpu.so build/libswapcpu.o
-
 build/libswapcpu.a: build/libswapcpu.o
 	ar rcs build/libswapcpu.a build/libswapcpu.o
 
