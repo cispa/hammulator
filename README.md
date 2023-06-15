@@ -152,11 +152,11 @@ Also check the [gem5 docs](https://www.gem5.org/documentation/learning_gem5/part
 If you use our tool in your work please cite our paper as:
 
 ``` bibtex
-@inproceedings{Thomas2023Hammulator,
- author = {Thomas, Fabian and Gerlach, Lukas and Schwarz, Michael},
- booktitle = {DRAMSec},
- title = {{Hammulator: Simulate Now -- Exploit Later}},
- year = {2023}
+@inproceedings{thomas2023hammulator,
+  author = {Thomas, Fabian and Gerlach, Lukas and Schwarz, Michael},
+  booktitle = {DRAMSec},
+  title = {{Hammulator: Simulate Now -- Exploit Later}},
+  year = {2023}
 }
 ```
 
