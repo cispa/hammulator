@@ -1,7 +1,7 @@
-From a67e4fee5428110efaf86733ad04dcf60b490920 Mon Sep 17 00:00:00 2001
+From dd233b26e265b050cf8968aba565f69d82846265 Mon Sep 17 00:00:00 2001
 From: Fabian Thomas <fabian@fabianthomas.de>
 Date: Fri, 16 Jun 2023 10:48:51 +0200
-Subject: [PATCH 2/7] update gitignore
+Subject: [PATCH 2/6] update gitignore
 
 ---
  .gitignore | 6 ++++++
