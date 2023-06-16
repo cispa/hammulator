@@ -1,7 +1,7 @@
-From 16c0216b06963483aca43fb68679bad2b080f7c7 Mon Sep 17 00:00:00 2001
+From a9db168b2e70455282d03e85260688013c99d31e Mon Sep 17 00:00:00 2001
 From: Fabian Thomas <fabian@fabianthomas.de>
-Date: Mon, 5 Jun 2023 13:55:50 +0200
-Subject: [PATCH 2/2] fix path
+Date: Fri, 16 Jun 2023 10:49:39 +0200
+Subject: [PATCH 4/7] make DRAMsim3 configs path compatible with hammulator
 
 ---
  src/mem/DRAMsim3.py | 4 ++--
@@ -26,5 +26,5 @@ index bc7192c901..c1ad25dcf0 100644
  
      def controller(self):
 -- 
-2.40.1
+2.41.0
 

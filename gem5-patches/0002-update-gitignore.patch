@@ -1,0 +1,26 @@
+From 155154d13834597d2fdfbbc0a18408e693a8ca08 Mon Sep 17 00:00:00 2001
+From: Fabian Thomas <fabian@fabianthomas.de>
+Date: Fri, 16 Jun 2023 10:48:51 +0200
+Subject: [PATCH 2/7] update gitignore
+
+---
+ .gitignore | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/.gitignore b/.gitignore
+index 229a0d5ae9..b48ae6d4f7 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -32,3 +32,9 @@ configs/example/memcheck.cfg
+ configs/dram/lowp_sweep.cfg
+ .pyenv
+ .vscode
++
++rowhammer_test
++dramsim3.txt
++dramsim3.json
++dramsim3epoch.json
++compile_commands.json
+-- 
+2.41.0
+

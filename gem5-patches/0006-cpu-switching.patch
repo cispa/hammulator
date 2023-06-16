@@ -1,0 +1,89 @@
+From e006c8e4f8a928bc048c692cce2492060b2658fe Mon Sep 17 00:00:00 2001
+From: Fabian Thomas <fabian@fabianthomas.de>
+Date: Fri, 16 Jun 2023 11:06:07 +0200
+Subject: [PATCH 6/7] cpu switching
+
+---
+ configs/common/Simulation.py | 38 ++++++++++++++++++++++++------------
+ 1 file changed, 26 insertions(+), 12 deletions(-)
+
+diff --git a/configs/common/Simulation.py b/configs/common/Simulation.py
+index 731b3fcaa5..386f0fdbfb 100644
+--- a/configs/common/Simulation.py
++++ b/configs/common/Simulation.py
+@@ -41,6 +41,8 @@ import sys
+ from os import getcwd
+ from os.path import join as joinpath
+ 
++import time
++
+ from common import CpuConfig
+ from common import ObjectList
+ 
+@@ -444,23 +446,35 @@ def restoreSimpointCheckpoint():
+ 
+ def repeatSwitch(testsys, repeat_switch_cpu_list, maxtick, switch_freq):
+     print("starting switch loop")
++    times_file=open("times", "w")
+     while True:
+-        exit_event = m5.simulate(switch_freq)
++        before = time.time()
++        exit_event = m5.simulate()
++        after = time.time()
++        times_file.write(str(after-before)+"\n")
++        times_file.flush()
++        print(
++            "Total wallclock time: %.2fs, %.2f min"
++            % (after - before, (after - before) / 60)
++        )
+         exit_cause = exit_event.getCause()
+ 
+-        if exit_cause != "simulate() limit reached":
++        if exit_cause != "m5_exit instruction encountered":
+             return exit_event
+ 
+-        m5.switchCpus(testsys, repeat_switch_cpu_list)
++        repeat_switch_cpu_list = switch_cpu(testsys, repeat_switch_cpu_list)
++
++def switch_cpu(testsys, repeat_switch_cpu_list):
++    m5.switchCpus(testsys, repeat_switch_cpu_list)
++    print("old cpu:", type(repeat_switch_cpu_list[0][0]))
++    print("new cpu:", type(repeat_switch_cpu_list[0][1]))
++    tmp_cpu_list = []
++    for old_cpu, new_cpu in repeat_switch_cpu_list:
++        tmp_cpu_list.append((new_cpu, old_cpu))
++    repeat_switch_cpu_list = tmp_cpu_list
++    return repeat_switch_cpu_list
+ 
+-        tmp_cpu_list = []
+-        for old_cpu, new_cpu in repeat_switch_cpu_list:
+-            tmp_cpu_list.append((new_cpu, old_cpu))
+-        repeat_switch_cpu_list = tmp_cpu_list
+ 
+-        if (maxtick - m5.curTick()) <= switch_freq:
+-            exit_event = m5.simulate(maxtick - m5.curTick())
+-            return exit_event
+ 
+ 
+ def run(options, root, testsys, cpu_class):
+@@ -556,7 +570,7 @@ def run(options, root, testsys, cpu_class):
+             sys.exit(1)
+ 
+         repeat_switch_cpus = [
+-            switch_class(switched_out=True, cpu_id=(i)) for i in range(np)
++            X86TimingSimpleCPU(switched_out=True, cpu_id=(i)) for i in range(np)
+         ]
+ 
+         for i in range(np):
+@@ -799,7 +813,7 @@ def run(options, root, testsys, cpu_class):
+ 
+         # If checkpoints are being taken, then the checkpoint instruction
+         # will occur in the benchmark code it self.
+-        if options.repeat_switch and maxtick > options.repeat_switch:
++        if options.repeat_switch:
+             exit_event = repeatSwitch(
+                 testsys, repeat_switch_cpu_list, maxtick, options.repeat_switch
+             )
+-- 
+2.41.0
+

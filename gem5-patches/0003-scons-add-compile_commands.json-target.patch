@@ -1,0 +1,40 @@
+From af4faa3eaf464923da9e2da0d60208138873ca2b Mon Sep 17 00:00:00 2001
+From: Fabian Thomas <fabian@fabianthomas.de>
+Date: Fri, 16 Jun 2023 10:49:12 +0200
+Subject: [PATCH 3/7] scons: add compile_commands.json target
+
+---
+ SConstruct     | 1 +
+ src/SConscript | 4 ++++
+ 2 files changed, 5 insertions(+)
+
+diff --git a/SConstruct b/SConstruct
+index e8107ea2c7..56775f2b29 100755
+--- a/SConstruct
++++ b/SConstruct
+@@ -181,6 +181,7 @@ main = Environment(tools=[
+ 
+ main.Tool(SCons.Tool.FindTool(['gcc', 'clang'], main))
+ main.Tool(SCons.Tool.FindTool(['g++', 'clang++'], main))
++main.Tool(SCons.Tool.FindTool(['compilation_db'], main))
+ 
+ Export('main')
+ 
+diff --git a/src/SConscript b/src/SConscript
+index 4e7139c064..a8d5fa1e7a 100644
+--- a/src/SConscript
++++ b/src/SConscript
+@@ -64,6 +64,10 @@ if env['CONF']['USE_EFENCE']:
+ # Children need to see the environment
+ Export('env')
+ 
++# Generate compile_commands.json for language servers
++if 'CompilationDatabase' in env['BUILDERS']:
++    env.CompilationDatabase('compile_commands.json')
++
+ build_env = list(env['CONF'].items())
+ 
+ from code_formatter import code_formatter
+-- 
+2.41.0
+

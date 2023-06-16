@@ -1,0 +1,460 @@
+From 59215b1ba94607f53b9a4a80c7d3b769c94efaaf Mon Sep 17 00:00:00 2001
+From: Fabian Thomas <fabian@fabianthomas.de>
+Date: Fri, 16 Jun 2023 11:15:12 +0200
+Subject: [PATCH 7/7] hammulator
+
+---
+ src/mem/dramsim3.cc         | 222 ++++++++++++++++++++++++++++++++++--
+ src/mem/dramsim3.hh         |  36 +++++-
+ src/mem/dramsim3_wrapper.cc |  19 ++-
+ src/mem/dramsim3_wrapper.hh |  15 ++-
+ 4 files changed, 270 insertions(+), 22 deletions(-)
+
+diff --git a/src/mem/dramsim3.cc b/src/mem/dramsim3.cc
+index fbffc7b579..644f5d5c45 100644
+--- a/src/mem/dramsim3.cc
++++ b/src/mem/dramsim3.cc
+@@ -43,6 +43,9 @@
+ #include "debug/Drain.hh"
+ #include "sim/system.hh"
+ 
++#include <cstdint>
++#include <random>
++
+ namespace gem5
+ {
+ 
+@@ -53,10 +56,21 @@ DRAMsim3::DRAMsim3(const Params &p) :
+     AbstractMemory(p),
+     port(name() + ".port", *this),
+     read_cb(std::bind(&DRAMsim3::readComplete,
+-                      this, 0, std::placeholders::_1)),
++                      this, 0, std::placeholders::_1, 
++                      std::placeholders::_2, std::placeholders::_3, 
++                      std::placeholders::_4, std::placeholders::_5, 
++                      std::placeholders::_6, std::placeholders::_7, 
++                      std::placeholders::_8)),
+     write_cb(std::bind(&DRAMsim3::writeComplete,
+-                       this, 0, std::placeholders::_1)),
+-    wrapper(p.configFile, p.filePath, read_cb, write_cb),
++                       this, 0, std::placeholders::_1, 
++                       std::placeholders::_2, std::placeholders::_3, 
++                       std::placeholders::_4, std::placeholders::_5, 
++                       std::placeholders::_6, std::placeholders::_7,
++                       std::placeholders::_8)),
++    refresh_cb(std::bind(&DRAMsim3::refreshComplete,
++                       this, 0, std::placeholders::_1, 
++                       std::placeholders::_2, std::placeholders::_3)),
++    wrapper(p.configFile, p.filePath, read_cb, write_cb, refresh_cb),
+     retryReq(false), retryResp(false), startTick(0),
+     nbrOutstandingReads(0), nbrOutstandingWrites(0),
+     sendResponseEvent([this]{ sendResponse(); }, name()),
+@@ -66,6 +80,11 @@ DRAMsim3::DRAMsim3(const Params &p) :
+             "Instantiated DRAMsim3 with clock %d ns and queue size %d\n",
+             wrapper.clockPeriod(), wrapper.queueSize());
+ 
++    // Get dram mapping
++    config = wrapper.GetConfig();
++
++    para_rng = std::minstd_rand(0);
++
+     // Register a callback to compensate for the destructor not
+     // being called. The callback prints the DRAMsim3 stats.
+     registerExitCallback([this]() { wrapper.printStats(); });
+@@ -150,6 +169,13 @@ DRAMsim3::tick()
+             retryReq = false;
+             port.sendRetryReq();
+         }
++    } else {
++        // erase both hammer and flipped state since we run in a non-timing
++        // CPU that does not execute the callbacks
++        // therefore we don't know if the memory was written in between and
++        // flips should therefore be possible again
++        hammer_count.clear();
++        flipped.clear();
+     }
+ 
+     schedule(tickEvent,
+@@ -289,9 +315,55 @@ DRAMsim3::accessAndRespond(PacketPtr pkt)
+     }
+ }
+ 
+-void DRAMsim3::readComplete(unsigned id, uint64_t addr)
+-{
++unsigned long long counts[10] = {0};
+ 
++inline double DRAMsim3::gen_proba(uint64_t addr) {
++    auto pp = probabilities.find(addr);
++    if (pp == probabilities.end()) {
++        // TODO: which one?
++        std::ranlux48_base gen(addr);
++        probabilities[addr] = std::generate_canonical<double, 10>(gen);
++        return probabilities[addr];
++    } else {
++        return pp->second;
++    }
++}
++
++void DRAMsim3::PARA(int channel, int rank, int bankgroup, int bank, int row) {
++    for (int dist=-5; dist<=5; dist++) {
++        if (dist == 0 || row+dist < 0 || row+dist>=config->rows) {
++            continue;
++        }
++        double rand = std::generate_canonical<double, 10>(para_rng);
++        if (rand > config->para_proba) {
++            continue;
++        }
++        uint64_t target = config->ReverseAddressMapping(channel, rank, bankgroup, bank, row+dist, 0);
++        hammer_count.erase(target);
++    }
++}
++
++// TODO: also do something on refresh
++void DRAMsim3::TRR(int channel, int rank, int bankgroup, int bank, int row) {
++    for (int dist=-5; dist<=5; dist++) {
++        if (dist == 0 || row+dist < 0 || row+dist>=config->rows) {
++            continue;
++        }
++        uint64_t target = config->ReverseAddressMapping(channel, rank, bankgroup, bank, row+dist, 0);
++        if(trr_count.find(target) == trr_count.end()) {
++            trr_count[target] = 1;
++        } else {
++            trr_count[target]++;
++        }
++
++        if (trr_count[target] > config->trr_threshold) {
++            hammer_count.erase(target);
++        }
++    }
++}
++
++void DRAMsim3::readComplete(unsigned id, uint64_t addr, int channel, int rank, int bankgroup, int bank, int row, int column, int bufferhit)
++{
+     DPRINTF(DRAMsim3, "Read to address %lld complete\n", addr);
+ 
+     // get the outstanding reads for the address in question
+@@ -313,11 +385,122 @@ void DRAMsim3::readComplete(unsigned id, uint64_t addr)
+ 
+     // perform the actual memory access
+     accessAndRespond(pkt);
++
++    counts[channel]++;
++
++    // Memory corruption code
++    bool buffhit = !!bufferhit;
++    hammer_count.erase(addr);
++
++    // no rowhammer effects when rowbuffer hit
++    if (buffhit) {
++        return;
++    }
++
++    for (int dist=-5; dist<=5; dist++) {
++        if (dist == 0 || row+dist < 0 || row+dist>=config->rows) {
++            continue;
++        }
++        int add = 0;
++        switch (abs(dist)) {
++            case 5:
++                add = config->inc_dist_5;
++                break;
++            case 4:
++                add = config->inc_dist_4;
++                break;
++            case 3:
++                add = config->inc_dist_3;
++                break;
++            case 2:
++                add = config->inc_dist_2;
++                break;
++            case 1:
++                add = config->inc_dist_1;
++                break;
++        }
++
++        if (add == 0) {
++            // We don't increment for this distance
++            continue;
++        }
++
++        uint64_t flipped_row_base = config->ReverseAddressMapping(channel, rank, bankgroup, bank, row+dist, 0);
++        if(hammer_count.find(flipped_row_base) == hammer_count.end()) {
++            hammer_count.insert(std::make_pair(flipped_row_base, add));
++            // Don't check against threshold here since we should be way below
++            continue;
++        }
++
++        hammer_count[flipped_row_base] += add;
++        if (hammer_count[flipped_row_base] < config->hc_first) {
++            continue;
++        }
++
++        double row_flip_rate = config->hc_last_bitflip_rate
++                *std::min((hammer_count[flipped_row_base]-config->hc_first)/(config->hc_last-config->hc_first), 1.0)
++                *64; // * bits in quadword, since we decide for one quadword here
++        for (uint64_t quad=flipped_row_base; quad<flipped_row_base+config->row_size; quad+=sizeof(uint64_t)) {
++            if (flipped.find(quad) != flipped.end()) {
++                // already flipped
++                continue;
++            }
++
++            // probabilisticly flip quadword
++            if (gen_proba(quad) > row_flip_rate) {
++                // no flip
++                continue;
++            }
++
++            flipped.insert(quad);
++
++            // this xor makes sure that this is not the same probability as for gen_proba
++            uint64_t mask = 0;
++            if (config->flip_mask) {
++                mask = config->flip_mask;
++            } else {
++                std::mt19937 gen(quad ^ 0xcafecafecafecafe);
++                double flipped_bits_ran = std::generate_canonical<double, 10>(gen);
++                int flipped_bits;
++                if (flipped_bits_ran <= config->proba_1_bit_flipped) {
++                    flipped_bits = 1;
++                } else if (flipped_bits_ran <= config->proba_1_bit_flipped
++                                              +config->proba_2_bit_flipped) {
++                    flipped_bits = 2;
++                } else if (flipped_bits_ran <= config->proba_1_bit_flipped
++                                              +config->proba_2_bit_flipped
++                                              +config->proba_3_bit_flipped) {
++                    flipped_bits = 3;
++                } else {
++                    flipped_bits = 4;
++                }
++
++                std::uniform_int_distribution<> distrib(0, 63);
++                for (int j = 0; j<flipped_bits; j++) {
++                    int pos;
++                    // find position that is not yet taken
++                    do {
++                        pos = distrib(gen);
++                    } while (mask & (((uint64_t)1) << pos));
++                    mask |= ((uint64_t)1) << pos;
++                }
++            }
++
++            // flip with mask
++            *(uint64_t*)this->toHostAddr(quad) ^= mask;
++        }
++    }
++
++    if (config->para_enabled) {
++        PARA(channel, rank, bankgroup, bank, row);
++    }
++    if (config->trr_enabled) {
++        TRR(channel, rank, bankgroup, bank, row);
++    }
+ }
+ 
+-void DRAMsim3::writeComplete(unsigned id, uint64_t addr)
++void DRAMsim3::writeComplete(unsigned id, uint64_t addr, int channel, int rank, int bankgroup, int bank, int row, int column, int bh)
+ {
+-
+     DPRINTF(DRAMsim3, "Write to address %lld complete\n", addr);
+ 
+     // get the outstanding reads for the address in question
+@@ -335,6 +518,31 @@ void DRAMsim3::writeComplete(unsigned id, uint64_t addr)
+ 
+     if (nbrOutstanding() == 0)
+         signalDrainDone();
++
++    // Memory corruption code
++    hammer_count.erase(addr);
++    for (uint64_t quad=addr; quad<addr+config->row_size; quad+=sizeof(uint64_t)) {
++        flipped.erase(quad);
++    }
++}
++
++void DRAMsim3::refreshComplete(unsigned id, int channel, int bankgroup, int bank)
++{
++    int maxcount = 0;;
++    for(auto it= hammer_count.begin(); it != hammer_count.end();){
++        dramsim3::Address a = config->AddressMapping(it->first);
++        if((a.channel == channel) &&
++           ((a.bankgroup == bankgroup) || (bankgroup == -1)) &&
++           ((a.bank == bank) || (bank == -1))){
++                maxcount = it->second > maxcount ? it->second : maxcount;
++                // NOTE: flipped is not erased here since we dont want to flip mutliple times
++                it = hammer_count.erase(it);
++        } else {
++            it++;
++        }
++    }
++    DPRINTF(DRAMsim3, "Refresh at channel %d bankgroup %d bank %d complete\n", channel, bankgroup, bank);
++    counts[channel] = 0;
+ }
+ 
+ Port&
+diff --git a/src/mem/dramsim3.hh b/src/mem/dramsim3.hh
+index f8fd54a263..cb4af4e69e 100644
+--- a/src/mem/dramsim3.hh
++++ b/src/mem/dramsim3.hh
+@@ -45,12 +45,13 @@
+ 
+ #include <functional>
+ #include <queue>
++#include <random>
+ #include <unordered_map>
++#include <tuple>
+ 
+ #include "mem/abstract_mem.hh"
+ #include "mem/dramsim3_wrapper.hh"
+ #include "mem/qport.hh"
+-#include "params/DRAMsim3.hh"
+ 
+ namespace gem5
+ {
+@@ -94,11 +95,19 @@ class DRAMsim3 : public AbstractMemory
+ 
+     MemoryPort port;
+ 
++    std::unordered_map<uint64_t,double> hammer_count;
++    std::unordered_map<uint64_t,double> probabilities;
++    std::set<uint64_t> flipped;
++    std::minstd_rand para_rng;
++
++    dramsim3::Config* config;
++
+     /**
+      * Callback functions
+      */
+-    std::function<void(uint64_t)> read_cb;
+-    std::function<void(uint64_t)> write_cb;
++    std::function<void(uint64_t, int, int, int, int, int, int, int)> read_cb;
++    std::function<void(uint64_t, int, int, int, int, int, int, int)> write_cb;
++    std::function<void(int, int, int)> refresh_cb;
+ 
+     /**
+      * The actual DRAMsim3 wrapper
+@@ -191,7 +200,7 @@ class DRAMsim3 : public AbstractMemory
+      * @param addr Address of the request
+      * @param cycle Internal cycle count of DRAMsim3
+      */
+-    void readComplete(unsigned id, uint64_t addr);
++    void readComplete(unsigned id, uint64_t addr, int channel, int rank, int bankgroup, int bank, int row, int column, int bufferhit);
+ 
+     /**
+      * Write completion callback.
+@@ -200,7 +209,24 @@ class DRAMsim3 : public AbstractMemory
+      * @param addr Address of the request
+      * @param cycle Internal cycle count of DRAMsim3
+      */
+-    void writeComplete(unsigned id, uint64_t addr);
++    void writeComplete(unsigned id, uint64_t addr, int channel, int rank, int bankgroup, int bank, int row, int column, int bufferhit);
++
++     /**
++     * Refresh competion callback.
++     *
++     * @param id Channel id of the responder
++     * @param addr Address of the request
++     * @param cycle Internal cycle count of DRAMsim3
++     */
++    void refreshComplete(unsigned id, int channel, int bankgroup, int bank);
++
++
++    void PARA(int channel, int rank, int bankgroup, int bank, int row);
++
++    std::unordered_map<uint64_t,int> trr_count;
++    void TRR(int channel, int rank, int bankgroup, int bank, int row);
++
++    double gen_proba(uint64_t addr);
+ 
+     DrainState drain() override;
+ 
+diff --git a/src/mem/dramsim3_wrapper.cc b/src/mem/dramsim3_wrapper.cc
+index 89e49017a9..a7717b8fc5 100644
+--- a/src/mem/dramsim3_wrapper.cc
++++ b/src/mem/dramsim3_wrapper.cc
+@@ -63,10 +63,11 @@ namespace memory
+ 
+ DRAMsim3Wrapper::DRAMsim3Wrapper(const std::string& config_file,
+                                  const std::string& working_dir,
+-                                 std::function<void(uint64_t)> read_cb,
+-                                 std::function<void(uint64_t)> write_cb) :
++                                 std::function<void(uint64_t, int, int, int,int, int, int, int)> read_cb,
++                                 std::function<void(uint64_t, int, int, int, int, int, int, int)> write_cb,
++                                 std::function<void(int, int, int)> refresh_cb) :
+     dramsim(dramsim3::GetMemorySystem(config_file, working_dir,
+-                                       read_cb, write_cb)),
++                                       read_cb, write_cb,refresh_cb)),
+     _clockPeriod(0.0), _queueSize(0), _burstSize(0)
+ {
+     // there is no way of getting DRAMsim3 to tell us what frequency
+@@ -100,6 +101,11 @@ DRAMsim3Wrapper::~DRAMsim3Wrapper()
+     delete dramsim;
+ }
+ 
++dramsim3::Config* DRAMsim3Wrapper::GetConfig()
++{
++    return dramsim->GetConfig();
++}
++
+ 
+ void
+ DRAMsim3Wrapper::printStats()
+@@ -114,10 +120,11 @@ DRAMsim3Wrapper::resetStats()
+ }
+ 
+ void
+-DRAMsim3Wrapper::setCallbacks(std::function<void(uint64_t)> read_complete,
+-                              std::function<void(uint64_t)> write_complete)
++DRAMsim3Wrapper::setCallbacks(std::function<void(uint64_t, int, int, int, int, int, int, int)> read_complete,
++                              std::function<void(uint64_t, int, int, int, int, int, int, int)> write_complete,
++                              std::function<void(int, int, int)> refresh_complete)
+ {
+-    dramsim->RegisterCallbacks(read_complete, write_complete);
++    dramsim->RegisterCallbacks(read_complete, write_complete, refresh_complete);
+ }
+ 
+ bool
+diff --git a/src/mem/dramsim3_wrapper.hh b/src/mem/dramsim3_wrapper.hh
+index 41b1088e79..9b8db6b6a9 100644
+--- a/src/mem/dramsim3_wrapper.hh
++++ b/src/mem/dramsim3_wrapper.hh
+@@ -46,6 +46,8 @@
+ 
+ #include <functional>
+ #include <string>
++#include "params/DRAMsim3.hh"
++#include "configuration.h"
+ 
+ /**
+  * Forward declaration to avoid includes
+@@ -98,10 +100,13 @@ class DRAMsim3Wrapper
+      */
+     DRAMsim3Wrapper(const std::string& config_file,
+                     const std::string& working_dir,
+-                    std::function<void(uint64_t)> read_cb,
+-                    std::function<void(uint64_t)> write_cb);
++                    std::function<void(uint64_t, int, int, int, int, int, int, int)> read_cb,
++                    std::function<void(uint64_t, int, int, int, int, int, int, int)> write_cb,
++                    std::function<void(int, int, int)> refresh_cb);
+     ~DRAMsim3Wrapper();
+ 
++    dramsim3::Config* GetConfig();
++
+     /**
+      * Print the stats gathered in DRAMsim3.
+      */
+@@ -117,9 +122,11 @@ class DRAMsim3Wrapper
+      *
+      * @param read_callback Callback used for read completions
+      * @param write_callback Callback used for write completions
++     * @param refresh_callback Callback used for refresh completions
+      */
+-    void setCallbacks(std::function<void(uint64_t)> read_complete,
+-                      std::function<void(uint64_t)> write_complete);
++    void setCallbacks(std::function<void(uint64_t, int, int, int, int, int, int, int)> read_complete,
++                      std::function<void(uint64_t, int, int, int, int, int, int, int)> write_complete,
++                      std::function<void(int, int, int)> refresh_complete);
+ 
+     /**
+      * Determine if the controller can accept a new packet or not.
+-- 
+2.41.0
+
