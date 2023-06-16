@@ -69,7 +69,7 @@ index fbffc7b579..46acbfcd78 100644
      }
  
      schedule(tickEvent,
-@@ -289,11 +309,64 @@ DRAMsim3::accessAndRespond(PacketPtr pkt)
+@@ -289,11 +309,62 @@ DRAMsim3::accessAndRespond(PacketPtr pkt)
      }
  }
  
@@ -80,7 +80,6 @@ index fbffc7b579..46acbfcd78 100644
 +inline double DRAMsim3::gen_proba(uint64_t addr) {
 +    auto pp = probabilities.find(addr);
 +    if (pp == probabilities.end()) {
-+        // TODO: which one?
 +        std::ranlux48_base gen(addr);
 +        probabilities[addr] = std::generate_canonical<double, 10>(gen);
 +        return probabilities[addr];
@@ -103,7 +102,6 @@ index fbffc7b579..46acbfcd78 100644
 +    }
 +}
 +
-+// TODO: also do something on refresh
 +void DRAMsim3::TRR(int channel, int rank, int bankgroup, int bank, int row) {
 +    for (int dist=-5; dist<=5; dist++) {
 +        if (dist == 0 || row+dist < 0 || row+dist>=config->rows) {

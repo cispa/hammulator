@@ -72,7 +72,6 @@ uint64_t get_physical_addr(uintptr_t virtual_addr) {
 uint64_t co = 0;
 
 // rochrababgco
-// TODO: why 5????
 /* #define dist (1<<(6+7+5)) */
 // chrababgroco
 /* #define dist (1<<(6+7)) */
@@ -125,7 +124,6 @@ int main()
     setvbuf(stdout, NULL, _IONBF, 0);
     printf("starting....\n");
 
-    // TODO: why prot_write needed?
     int mmap_size = dist*30;
     c = (uint8_t*)mmap(0, mmap_size, PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE, 0, 0);
 
@@ -168,7 +166,6 @@ int main()
     print_address(middle);
     print_address(upper);
 
-    // TODO: try out switch cpu
     printf("switching to timing cpu...\n");
     libswapcpu_swapcpu();
     printf("now hammering\n");

@@ -1,6 +1,3 @@
-# TODO: check if the privesc exploit is faster with more ram, why is kvm slow?
-# TODO: readme, add notes about dram config
-
 # PT privesc exploit
 cpu-clock := 2GHz
 memsize := 200MB

@@ -357,7 +357,7 @@ static void test_rsa1024(void)
     printf("switched back\n");
   }
 
-  // TODO: this is weird, and wtf why 16???
+  // TODO: this is weird, why 16???
   // restore zeros
   for (int i=16; i<BN_ARRAY_SIZE; i++) {
     n->array[i] = 0;

@@ -163,7 +163,7 @@ void clflush(uintptr_t addr) {
 }
 
 class BitFlipper {
-  // TODO: argue why this number, problem is we need a small amount of bits, a lot of bits break
+  // We want just a few bit flips
   static const int hammer_count = 5500;
 
   const struct HammerAddrs *phys;
