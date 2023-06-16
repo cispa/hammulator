@@ -44,7 +44,7 @@ hammulator: dramsim3 m5
 
 # NOTE: Use this when developing for faster linkage.
 # requires the mold linker
-hammulator-mold:
+hammulator-mold: dramsim3 m5
 	yes | scons -C gem5 --linker=mold build/X86/gem5.opt -j$(shell nproc)
 
 # This builds m5term and the cpu swapping libraries.
