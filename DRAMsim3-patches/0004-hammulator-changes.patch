@@ -1,47 +1,31 @@
-From 94eb3fe76dc2feb0800c0b58ad0bd218ae9e9112 Mon Sep 17 00:00:00 2001
+From e461c6684d5dc1d2e03202c55d18db775f9934db Mon Sep 17 00:00:00 2001
 From: Fabian Thomas <fabian@fabianthomas.de>
-Date: Mon, 5 Jun 2023 12:41:20 +0200
-Subject: [PATCH] init
+Date: Fri, 16 Jun 2023 12:50:52 +0200
+Subject: [PATCH 4/4] hammulator changes
 
 ---
- Makefile                     |  2 +-
- configs/DDR4_8Gb_x8_2400.ini | 56 +++++++++++++++++++++++++++++++-----
- configs/DDR4_8Gb_x8_3200.ini | 13 +++++++--
- src/bankstate.cc             |  1 +
- src/command_queue.cc         |  2 +-
- src/common.h                 |  7 +++--
- src/configuration.cc         | 44 +++++++++++++++++++++++++++-
- src/configuration.h          | 25 ++++++++++++++++
- src/controller.cc            | 33 +++++++++++++++++++--
- src/controller.h             | 14 +++++++--
- src/cpu.h                    |  4 ++-
- src/dram_system.cc           | 38 +++++++++++++-----------
- src/dram_system.h            | 23 +++++++++------
- src/dramsim3.h               | 18 ++++++++----
- src/hmc.cc                   | 15 +++++-----
- src/hmc.h                    |  5 ++--
- src/memory_system.cc         | 25 +++++++++-------
- src/memory_system.h          | 17 +++++++----
- src/refresh.cc               |  9 ++++--
- src/refresh.h                |  4 ++-
- 20 files changed, 274 insertions(+), 81 deletions(-)
+ configs/DDR4_8Gb_x8_2400.ini | 21 +++++++++++++-------
+ src/common.h                 |  7 +++++--
+ src/configuration.h          |  3 +++
+ src/controller.cc            | 19 +++++++++++++++---
+ src/controller.h             | 12 ++++++++++--
+ src/cpu.h                    |  4 +++-
+ src/dram_system.cc           | 38 +++++++++++++++++++++---------------
+ src/dram_system.h            | 23 +++++++++++++---------
+ src/dramsim3.h               | 18 +++++++++++------
+ src/hmc.cc                   | 15 +++++++-------
+ src/hmc.h                    |  5 +++--
+ src/memory_system.cc         | 25 ++++++++++++++----------
+ src/memory_system.h          | 17 ++++++++++------
+ src/refresh.cc               |  9 +++++++--
+ src/refresh.h                |  4 +++-
+ 15 files changed, 146 insertions(+), 74 deletions(-)
 
-diff --git a/Makefile b/Makefile
-index 130f7b5..3a2bc5f 100644
---- a/Makefile
-+++ b/Makefile
-@@ -40,4 +40,4 @@ $(LIB_NAME): $(OBJECTS)
- 	$(CC) -fPIC -O2 -o $@ -c $<
- 
- clean:
--	-rm -f $(EXE_OBJS) $(LIB_NAME) $(EXE_NAME)
-\ No newline at end of file
-+	-rm -f $(EXE_OBJS) $(LIB_NAME) $(EXE_NAME)
 diff --git a/configs/DDR4_8Gb_x8_2400.ini b/configs/DDR4_8Gb_x8_2400.ini
-index f55b021..37f6400 100644
+index 3b4f071..e9a6677 100644
 --- a/configs/DDR4_8Gb_x8_2400.ini
 +++ b/configs/DDR4_8Gb_x8_2400.ini
-@@ -1,9 +1,13 @@
+@@ -1,9 +1,10 @@
  [dram_structure]
  protocol = DDR4
 -bankgroups = 4
@@ -53,13 +37,10 @@ index f55b021..37f6400 100644
 +banks_per_group = 4 # 2
 +rows = 65536        # 16
 +columns = 1024      # 10
-+# bankgroups = 1
-+# banks_per_group = 1
-+# rows = 100000
  device_width = 8
  BL = 8
  
-@@ -18,7 +22,9 @@ tRAS = 39
+@@ -18,7 +19,9 @@ tRAS = 39
  tRFC = 420
  tRFC2 = 312
  tRFC4 = 192
@@ -70,7 +51,7 @@ index f55b021..37f6400 100644
  tRPRE = 1
  tWPRE = 1
  tRRD_S = 4
-@@ -54,12 +60,48 @@ IDD6x = 30
+@@ -54,12 +57,16 @@ IDD6x = 30
  channel_size = 16384
  channels = 1
  bus_width = 64
@@ -83,107 +64,14 @@ index f55b021..37f6400 100644
  row_buf_policy = OPEN_PAGE
  cmd_queue_size = 8
 -trans_queue_size = 32
-+# TODO: this is bad but we have no alternative
++# TODO: DRAMsim3 crashes when this is not increased.
++# Increasing this is bad but the only option we currently have.
 +trans_queue_size = 32000000000
-+
-+[rowhammer]
-+# Number of hammers so that a the first bit flips start to occur.
-+HC_first = 10000.0
-+# Number of hammers where no new flips occur anymore.
-+HC_last = 150000.0
-+
-+# Probability that a quadword flips at HC_last
-+# this scales linearly with HC
-+HC_last_bitflip_rate = 0.005
-+
-+inc_dist_1 = 1.0
-+inc_dist_2 = 0.0
-+inc_dist_3 = 0.0
-+inc_dist_4 = 0.0
-+inc_dist_5 = 0.0
-+
-+# Probabilities that more than one flip occurs.
-+# Need to satisfy p1+p2+p3+p4=1.
-+proba_1_bit_flipped = 1.0
-+proba_2_bit_flipped = 0.0
-+proba_3_bit_flipped = 0.0
-+proba_4_bit_flipped = 0.0
-+# predefined static flip mask, overwrites probabilities
-+# flip_mask = 0x10000
-+
-+# Probability as reported by Kim et. al
-+para_proba = 0.001
-+para_enabled = false
-+
-+# Threshold so that it is just below HC_first
-+trr_threshold = 8000
-+trr_enabled = false
  
- [other]
- epoch_period = 1204819
-diff --git a/configs/DDR4_8Gb_x8_3200.ini b/configs/DDR4_8Gb_x8_3200.ini
-index ecce78e..5263cc6 100644
---- a/configs/DDR4_8Gb_x8_3200.ini
-+++ b/configs/DDR4_8Gb_x8_3200.ini
-@@ -4,6 +4,9 @@ bankgroups = 4
- banks_per_group = 4
- rows = 65536
- columns = 1024
-+# bankgroups = 1
-+# banks_per_group = 1
-+# rows = 100000
- device_width = 8
- BL = 8
- 
-@@ -54,14 +57,18 @@ IDD6x = 30
- channel_size = 16384
- channels = 1
- bus_width = 64
--address_mapping = rochrababgco
-+# address_mapping = rochrababgco
-+address_mapping = chrababgroco
-+# address_mapping = chrababgcoro
- queue_structure = PER_BANK
- refresh_policy = RANK_LEVEL_STAGGERED
--row_buf_policy = OPEN_PAGE
-+row_buf_policy = CLOSE_PAGE
-+# row_buf_policy = SIZE
- cmd_queue_size = 8
- trans_queue_size = 32
- 
- [other]
- epoch_period = 1587301
- output_level = 1
--
-+# like that we get flips on all three rows
-+flip_threshold = 3000
-diff --git a/src/bankstate.cc b/src/bankstate.cc
-index 46aa511..582aaa4 100644
---- a/src/bankstate.cc
-+++ b/src/bankstate.cc
-@@ -107,6 +107,7 @@ void BankState::UpdateState(const Command& cmd) {
-                     state_ = State::CLOSED;
-                     open_row_ = -1;
-                     row_hit_count_ = 0;
-+                    // printf("\n\n\n\n\n\nresetting\n\n\n\n");
-                     break;
-                 case CommandType::ACTIVATE:
-                 case CommandType::REFRESH:
-diff --git a/src/command_queue.cc b/src/command_queue.cc
-index f121d28..21045d4 100644
---- a/src/command_queue.cc
-+++ b/src/command_queue.cc
-@@ -115,7 +115,7 @@ bool CommandQueue::WillAcceptCommand(int rank, int bankgroup, int bank) const {
- }
- 
- bool CommandQueue::QueueEmpty() const {
--    for (const auto q : queues_) {
-+    for (const auto &q : queues_) {
-         if (!q.empty()) {
-             return false;
-         }
+ [rowhammer]
+ # Number of hammers so that a the first bit flips start to occur.
 diff --git a/src/common.h b/src/common.h
-index 2f3f044..e249b53 100644
+index 2f3f044..9898cbe 100644
 --- a/src/common.h
 +++ b/src/common.h
 @@ -110,16 +110,19 @@ struct Transaction {
@@ -192,7 +80,7 @@ index 2f3f044..e249b53 100644
            complete_cycle(0),
 -          is_write(is_write) {}
 +          is_write(is_write),
-+          buffhit(-1) {}
++          buffhit(false) {}
      Transaction(const Transaction& tran)
          : addr(tran.addr),
            added_cycle(tran.added_cycle),
@@ -204,150 +92,26 @@ index 2f3f044..e249b53 100644
      uint64_t added_cycle;
      uint64_t complete_cycle;
      bool is_write;
-+    int buffhit;
++    bool buffhit;
  
      friend std::ostream& operator<<(std::ostream& os, const Transaction& trans);
      friend std::istream& operator>>(std::istream& is, Transaction& trans);
-diff --git a/src/configuration.cc b/src/configuration.cc
-index 297692d..96438c2 100644
---- a/src/configuration.cc
-+++ b/src/configuration.cc
-@@ -1,5 +1,6 @@
- #include "configuration.h"
--
-+#include <cassert>
-+#include <stdio.h>
- #include <vector>
- 
- #ifdef THERMAL
-@@ -22,6 +23,7 @@ Config::Config(std::string config_file, std::string out_dir)
-     CalculateSize();
-     SetAddressMapping();
-     InitTimingParams();
-+    InitRowhammerParams();
-     InitPowerParams();
-     InitOtherParams();
- #ifdef THERMAL
-@@ -30,6 +32,7 @@ Config::Config(std::string config_file, std::string out_dir)
-     delete (reader_);
- }
- 
-+//
- Address Config::AddressMapping(uint64_t hex_addr) const {
-     hex_addr >>= shift_bits;
-     int channel = (hex_addr >> ch_pos) & ch_mask;
-@@ -41,6 +44,17 @@ Address Config::AddressMapping(uint64_t hex_addr) const {
-     return Address(channel, rank, bg, ba, ro, co);
- }
- 
-+uint64_t Config::ReverseAddressMapping(int channel, int rank, int bg, int ba, int ro, int co) const {
-+    uint64_t addr = 0;
-+    addr |= channel << ch_pos;
-+    addr |= rank << ra_pos;
-+    addr |= bg << bg_pos;
-+    addr |= ba << ba_pos;
-+    addr |= ro << ro_pos;
-+    addr |= co << co_pos;
-+    return addr << shift_bits;
-+}
-+
- void Config::CalculateSize() {
-     // calculate rank and re-calculate channel_size
-     devices_per_rank = bus_width / device_width;
-@@ -180,6 +194,33 @@ void Config::InitOtherParams() {
-     return;
- }
- 
-+void Config::InitRowhammerParams() {
-+    const auto& reader = *reader_;
-+    // These values come from table 6 of Revisiting by Kim et. al
-+    inc_dist_1 = reader.GetReal("rowhammer", "inc_dist_1", 1.0);   // 0.3/0.3
-+    inc_dist_2 = reader.GetReal("rowhammer", "inc_dist_2", 0.0);   // 0.0/0.3
-+    inc_dist_3 = reader.GetReal("rowhammer", "inc_dist_3", 0.3);   // 0.1/0.3
-+    inc_dist_4 = reader.GetReal("rowhammer", "inc_dist_4", 0.0);   // 0.0/0.3
-+    inc_dist_5 = reader.GetReal("rowhammer", "inc_dist_5", 0.1);   // 0.03/0.3
-+    hc_first = reader.GetReal("rowhammer", "HC_first", 300.0);
-+    hc_last = reader.GetReal("rowhammer", "HC_last", 300.0);
-+    hc_last_bitflip_rate = reader.GetReal("rowhammer", "hc_last_bitflip_rate", 1.0/1000);
-+    proba_1_bit_flipped = reader.GetReal("rowhammer", "proba_1_bit_flipped", 1.0);
-+    proba_2_bit_flipped = reader.GetReal("rowhammer", "proba_2_bit_flipped", 0.0);
-+    proba_3_bit_flipped = reader.GetReal("rowhammer", "proba_3_bit_flipped", 0.0);
-+    proba_4_bit_flipped = reader.GetReal("rowhammer", "proba_4_bit_flipped", 0.0);
-+    if (proba_1_bit_flipped+proba_2_bit_flipped+proba_3_bit_flipped+proba_4_bit_flipped != 1.0) {
-+        std::cerr << "probabilities do not sum up to one"  << std::endl;
-+        exit(1);
-+    }
-+    flip_mask = reader.GetReal("rowhammer", "flip_mask", 0);
-+    para_proba = reader.GetReal("rowhammer", "para_proba", 0.05);
-+    para_enabled = reader.GetBoolean("rowhammer", "para_enabled", false);
-+    trr_threshold = reader.GetInteger("rowhammer", "trr_threshold", 200);
-+    trr_enabled = reader.GetBoolean("rowhammer", "trr_enabled", false);
-+    return;
-+}
-+
- void Config::InitPowerParams() {
-     const auto& reader = *reader_;
-     // Power-related parameters
-@@ -395,6 +436,7 @@ void Config::SetAddressMapping() {
-     ro_pos = field_pos.at("ro");
-     co_pos = field_pos.at("co");
- 
-+    //
-     ch_mask = (1 << field_widths.at("ch")) - 1;
-     ra_mask = (1 << field_widths.at("ra")) - 1;
-     bg_mask = (1 << field_widths.at("bg")) - 1;
 diff --git a/src/configuration.h b/src/configuration.h
-index 44dae77..fa4970d 100644
+index e0c14dd..fa4970d 100644
 --- a/src/configuration.h
 +++ b/src/configuration.h
-@@ -35,6 +35,11 @@ class Config {
-    public:
-     Config(std::string config_file, std::string out_dir);
+@@ -37,6 +37,9 @@ class Config {
      Address AddressMapping(uint64_t hex_addr) const;
-+    uint64_t ReverseAddressMapping(int channel, int rank, int bg, int ba, int ro, int co) const;
-+
+     uint64_t ReverseAddressMapping(int channel, int rank, int bg, int ba, int ro, int co) const;
+ 
 +    // TODO: fix this hardcoding
 +    int row_size = 2*4096;
 +
      // DRAM physical structure
      DRAMProtocol protocol;
      int channel_size;
-@@ -99,6 +104,25 @@ class Config {
-     int tRCDRD;
-     int tRCDWR;
- 
-+    // Rowhammer
-+    double inc_dist_1;
-+    double inc_dist_2;
-+    double inc_dist_3;
-+    double inc_dist_4;
-+    double inc_dist_5;
-+    double hc_first;
-+    double hc_last;
-+    double hc_last_bitflip_rate;
-+    double proba_1_bit_flipped;
-+    double proba_2_bit_flipped;
-+    double proba_3_bit_flipped;
-+    double proba_4_bit_flipped;
-+    uint64_t flip_mask;
-+    bool para_enabled;
-+    double para_proba;
-+    bool trr_enabled;
-+    int trr_threshold;
-+
-     // pre calculated power parameters
-     double act_energy_inc;
-     double pre_energy_inc;
-@@ -190,6 +214,7 @@ class Config {
-                    int default_val) const;
-     void InitDRAMParams();
-     void InitOtherParams();
-+    void InitRowhammerParams();
-     void InitPowerParams();
-     void InitSystemParams();
- #ifdef THERMAL
 diff --git a/src/controller.cc b/src/controller.cc
-index a582dcc..8891220 100644
+index a582dcc..c8e572c 100644
 --- a/src/controller.cc
 +++ b/src/controller.cc
 @@ -7,17 +7,25 @@ namespace dramsim3 {
@@ -356,14 +120,14 @@ index a582dcc..8891220 100644
  Controller::Controller(int channel, const Config &config, const Timing &timing,
 -                       ThermalCalculator &thermal_calc)
 +                       ThermalCalculator &thermal_calc,
-+                       std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                       std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                       std::function<void(uint64_t, bool)> read_callback,
++                       std::function<void(uint64_t, bool)> write_callback,
 +                       std::function<void(int, int, int)> refresh_callback)
  #else
 -Controller::Controller(int channel, const Config &config, const Timing &timing)
 +Controller::Controller(int channel, const Config &config, const Timing &timing,
-+                       std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                       std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                       std::function<void(uint64_t, bool)> read_callback,
++                       std::function<void(uint64_t, bool)> write_callback,
 +                       std::function<void(int, int, int)> refresh_callback)
  #endif  // THERMAL
      : channel_id_(channel),
@@ -379,51 +143,23 @@ index a582dcc..8891220 100644
  #ifdef THERMAL
        thermal_calc_(thermal_calc),
  #endif  // THERMAL
-@@ -48,9 +56,23 @@ std::pair<uint64_t, int> Controller::ReturnDoneTrans(uint64_t clk) {
+@@ -48,9 +56,14 @@ std::pair<uint64_t, int> Controller::ReturnDoneTrans(uint64_t clk) {
          if (clk >= it->complete_cycle) {
              if (it->is_write) {
                  simple_stats_.Increment("num_writes_done");
 +                Address addr = config_.AddressMapping(it->addr);
-+                // TODO: Fixing this would need a lot of effort as writes are anyways not used for hammering and the result is mostely good 
-+                // we leave that for now
-+                // printf("write in controller.cc returndonetrans, address 0x%lx rowhitcount %d, rowopen: %d\n", it->addr, channel_state_.RowHitCount(addr.rank, addr.bankgroup, addr.bank), channel_state_.IsRowOpen(addr.rank, addr.bankgroup, addr.bank));
-+                // printf("rank %d bankgroup %d, bank %d, row %d\n", addr.rank, addr.bankgroup, addr.bank, addr.row);
-+                fflush(stdout);
-+                int buffhit = channel_state_.RowHitCount(addr.rank, addr.bankgroup, addr.bank);
-+                write_callback_(it->addr, addr.channel, addr.rank, addr.bankgroup, addr.bank, addr.row, addr.column,buffhit);
++                // TODO: is below bufhit check correct?
++                write_callback_(it->addr, channel_state_.RowHitCount(addr.rank, addr.bankgroup, addr.bank) != 0);
              } else {
                  simple_stats_.Increment("num_reads_done");
                  simple_stats_.AddValue("read_latency", clk_ - it->added_cycle);
 +                Address addr = config_.AddressMapping(it->addr);
-+                // TODO
-+                // printf("read experimental in controller.cc returndonetrans, address 0x%lx rowhitcount %d, rowopen: %d\n", it->addr, channel_state_.RowHitCount(addr.rank, addr.bankgroup, addr.bank), channel_state_.IsRowOpen(addr.rank, addr.bankgroup, addr.bank));
-+                // printf("rank %d bankgroup %d, bank %d, row %d\n", addr.rank, addr.bankgroup, addr.bank, addr.row);
-+                int buffhit = channel_state_.RowHitCount(addr.rank, addr.bankgroup, addr.bank)-1;
-+                read_callback_(it->addr, addr.channel, addr.rank, addr.bankgroup, addr.bank, addr.row, addr.column,buffhit);
++                read_callback_(it->addr, channel_state_.RowHitCount(addr.rank, addr.bankgroup, addr.bank) != 1);
              }
              auto pair = std::make_pair(it->addr, it->is_write);
              it = return_queue_.erase(it);
-@@ -235,6 +257,7 @@ void Controller::IssueCommand(const Command &cmd) {
-     thermal_calc_.UpdateCMDPower(channel_id_, cmd, clk_);
- #endif  // THERMAL
-     // if read/write, update pending queue and return queue
-+    // printf("issuecommand, address 0x%lx, isread %d, iswrite %d, isreadwrite %d\n", cmd.hex_addr, cmd.IsRead(), cmd.IsWrite(), cmd.IsReadWrite());
-     if (cmd.IsRead()) {
-         auto num_reads = pending_rd_q_.count(cmd.hex_addr);
-         if (num_reads == 0) {
-@@ -244,6 +267,10 @@ void Controller::IssueCommand(const Command &cmd) {
-         // if there are multiple reads pending return them all
-         while (num_reads > 0) {
-             auto it = pending_rd_q_.find(cmd.hex_addr);
-+            // printf("read in issuecommand, address 0x%lx rowhitcount %d, rowopen: %d\n", cmd.hex_addr, channel_state_.RowHitCount(cmd.Rank(), cmd.Bankgroup(), cmd.Bank()), channel_state_.IsRowOpen(cmd.Rank(), cmd.Bankgroup(), cmd.Bank()));
-+            // fflush(stdout);
-+            // //TODO
-+            // it->second.buffhit = channel_state_.RowHitCount(cmd.Rank(), cmd.Bankgroup(), cmd.Bank());
-             it->second.complete_cycle = clk_ + config_.read_delay;
-             return_queue_.push_back(it->second);
-             pending_rd_q_.erase(it);
 diff --git a/src/controller.h b/src/controller.h
-index 77bd6af..041af77 100644
+index 77bd6af..746e8e5 100644
 --- a/src/controller.h
 +++ b/src/controller.h
 @@ -2,6 +2,7 @@
@@ -440,36 +176,26 @@ index 77bd6af..041af77 100644
      Controller(int channel, const Config &config, const Timing &timing,
 -               ThermalCalculator &thermalcalc);
 +               ThermalCalculator &thermalcalc,
-+               std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+               std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++               std::function<void(uint64_t, bool)> read_callback,
++               std::function<void(uint64_t, bool)> write_callback,
 +               std::function<void(int, int, int)> refresh_callback);
  #else
 -    Controller(int channel, const Config &config, const Timing &timing);
 +    Controller(int channel, const Config &config, const Timing &timing,
-+                std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                std::function<void(uint64_t, bool)> read_callback,
++                std::function<void(uint64_t, bool)> write_callback,
 +                std::function<void(int, int, int)> refresh_callback);
  #endif  // THERMAL
      void ClockTick();
      bool WillAcceptTransaction(uint64_t hex_addr, bool is_write) const;
-@@ -36,8 +43,8 @@ class Controller {
-     void PrintFinalStats();
-     void ResetStats() { simple_stats_.Reset(); }
+@@ -38,6 +45,7 @@ class Controller {
      std::pair<uint64_t, int> ReturnDoneTrans(uint64_t clock);
--
+ 
      int channel_id_;
-+    std::function<void(uint64_t req_id, int channel, int rank, int bankgroup, int bank, int row, int column, int bufferhit)> read_callback_, write_callback_;
++    std::function<void(uint64_t addr, bool bufferhit)> read_callback_, write_callback_;
  
     private:
      uint64_t clk_;
-@@ -46,6 +53,7 @@ class Controller {
-     ChannelState channel_state_;
-     CommandQueue cmd_queue_;
-     Refresh refresh_;
-+    std::vector<std::pair<uint64_t, int>> addr_is_hit;
- 
- #ifdef THERMAL
-     ThermalCalculator &thermal_calc_;
 diff --git a/src/cpu.h b/src/cpu.h
 index 9ec28e7..c5ef488 100644
 --- a/src/cpu.h
@@ -490,7 +216,7 @@ index 9ec28e7..c5ef488 100644
  
     protected:
 diff --git a/src/dram_system.cc b/src/dram_system.cc
-index 86f35f8..a4eb64f 100644
+index 86f35f8..963de00 100644
 --- a/src/dram_system.cc
 +++ b/src/dram_system.cc
 @@ -9,10 +9,12 @@ namespace dramsim3 {
@@ -499,8 +225,8 @@ index 86f35f8..a4eb64f 100644
  BaseDRAMSystem::BaseDRAMSystem(Config &config, const std::string &output_dir,
 -                               std::function<void(uint64_t)> read_callback,
 -                               std::function<void(uint64_t)> write_callback)
-+                               std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                               std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                               std::function<void(uint64_t, bool)> read_callback,
++                               std::function<void(uint64_t, bool)> write_callback,
 +                               std::function<void(int, int, int)> refresh_callback)
      : read_callback_(read_callback),
        write_callback_(write_callback),
@@ -514,8 +240,8 @@ index 86f35f8..a4eb64f 100644
  void BaseDRAMSystem::RegisterCallbacks(
 -    std::function<void(uint64_t)> read_callback,
 -    std::function<void(uint64_t)> write_callback) {
-+    std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+    std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++    std::function<void(uint64_t, bool)> read_callback,
++    std::function<void(uint64_t, bool)> write_callback,
 +    std::function<void(int, int, int)> refresh_callback) {
      // TODO this should be propagated to controllers
      read_callback_ = read_callback;
@@ -527,8 +253,8 @@ index 86f35f8..a4eb64f 100644
 -                                 std::function<void(uint64_t)> read_callback,
 -                                 std::function<void(uint64_t)> write_callback)
 -    : BaseDRAMSystem(config, output_dir, read_callback, write_callback) {
-+                                 std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                                 std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                                 std::function<void(uint64_t, bool)> read_callback,
++                                 std::function<void(uint64_t, bool)> write_callback,
 +                                 std::function<void(int, int, int)> refresh_callback)
 +    : BaseDRAMSystem(config, output_dir, read_callback, write_callback,refresh_callback) {
      if (config_.IsHMC()) {
@@ -565,8 +291,8 @@ index 86f35f8..a4eb64f 100644
 -                                 std::function<void(uint64_t)> read_callback,
 -                                 std::function<void(uint64_t)> write_callback)
 -    : BaseDRAMSystem(config, output_dir, read_callback, write_callback),
-+                                 std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                                 std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                                 std::function<void(uint64_t, bool)> read_callback,
++                                 std::function<void(uint64_t, bool)> write_callback,
 +                                 std::function<void(int, int, int)> refresh_callback)
 +    : BaseDRAMSystem(config, output_dir, read_callback, write_callback,refresh_callback),
        latency_(config_.ideal_memory_latency) {}
@@ -585,7 +311,7 @@ index 86f35f8..a4eb64f 100644
              trans_it = infinite_buffer_q_.erase(trans_it++);
          }
 diff --git a/src/dram_system.h b/src/dram_system.h
-index 7864b2c..e127c2a 100644
+index 7864b2c..af94ef2 100644
 --- a/src/dram_system.h
 +++ b/src/dram_system.h
 @@ -19,11 +19,13 @@ namespace dramsim3 {
@@ -594,14 +320,14 @@ index 7864b2c..e127c2a 100644
      BaseDRAMSystem(Config &config, const std::string &output_dir,
 -                   std::function<void(uint64_t)> read_callback,
 -                   std::function<void(uint64_t)> write_callback);
-+                   std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                   std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                   std::function<void(uint64_t, bool)> read_callback,
++                   std::function<void(uint64_t, bool)> write_callback,
 +                   std::function<void(int, int, int)> refresh_callback);
      virtual ~BaseDRAMSystem() {}
 -    void RegisterCallbacks(std::function<void(uint64_t)> read_callback,
 -                           std::function<void(uint64_t)> write_callback);
-+    void RegisterCallbacks(std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                           std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++    void RegisterCallbacks(std::function<void(uint64_t, bool)> read_callback,
++                           std::function<void(uint64_t, bool)> write_callback,
 +                           std::function<void(int, int, int)> refresh_callback);
      void PrintEpochStats();
      void PrintStats();
@@ -611,7 +337,7 @@ index 7864b2c..e127c2a 100644
      int GetChannel(uint64_t hex_addr) const;
  
 -    std::function<void(uint64_t req_id)> read_callback_, write_callback_;
-+    std::function<void(uint64_t req_id, int channel, int rank, int bankgroup, int bank, int row, int column, int bufferhit)> read_callback_, write_callback_;
++    std::function<void(uint64_t addr, bool bufferhit)> read_callback_, write_callback_;
 +    std::function<void(int channel, int bankgroup, int bank)> refresh_callback_;
      static int total_channels_;
  
@@ -622,8 +348,8 @@ index 7864b2c..e127c2a 100644
      JedecDRAMSystem(Config &config, const std::string &output_dir,
 -                    std::function<void(uint64_t)> read_callback,
 -                    std::function<void(uint64_t)> write_callback);
-+                    std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                    std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                    std::function<void(uint64_t, bool)> read_callback,
++                    std::function<void(uint64_t, bool)> write_callback,
 +                    std::function<void(int, int, int)> refresh_callback);
      ~JedecDRAMSystem();
      bool WillAcceptTransaction(uint64_t hex_addr, bool is_write) const override;
@@ -634,14 +360,14 @@ index 7864b2c..e127c2a 100644
      IdealDRAMSystem(Config &config, const std::string &output_dir,
 -                    std::function<void(uint64_t)> read_callback,
 -                    std::function<void(uint64_t)> write_callback);
-+                    std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                    std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                    std::function<void(uint64_t, bool)> read_callback,
++                    std::function<void(uint64_t, bool)> write_callback,
 +                    std::function<void(int, int, int)> refresh_callback);
      ~IdealDRAMSystem();
      bool WillAcceptTransaction(uint64_t hex_addr,
                                 bool is_write) const override {
 diff --git a/src/dramsim3.h b/src/dramsim3.h
-index 31a3c8a..ca4808d 100644
+index 31a3c8a..02b32d2 100644
 --- a/src/dramsim3.h
 +++ b/src/dramsim3.h
 @@ -1,6 +1,7 @@
@@ -658,15 +384,15 @@ index 31a3c8a..ca4808d 100644
      MemorySystem(const std::string &config_file, const std::string &output_dir,
 -                 std::function<void(uint64_t)> read_callback,
 -                 std::function<void(uint64_t)> write_callback);
-+                 std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                 std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                 std::function<void(uint64_t, bool)> read_callback,
++                 std::function<void(uint64_t, bool)> write_callback,
 +                 std::function<void(int, int, int)> refresh_callback);
      ~MemorySystem();
      void ClockTick();
 -    void RegisterCallbacks(std::function<void(uint64_t)> read_callback,
 -                           std::function<void(uint64_t)> write_callback);
-+    void RegisterCallbacks(std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                           std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++    void RegisterCallbacks(std::function<void(uint64_t, bool)> read_callback,
++                           std::function<void(uint64_t, bool)> write_callback,
 +                           std::function<void(int,int,int)> refresh_callback);
      double GetTCK() const;
      int GetBusBits() const;
@@ -684,14 +410,14 @@ index 31a3c8a..ca4808d 100644
  MemorySystem* GetMemorySystem(const std::string &config_file, const std::string &output_dir,
 -                 std::function<void(uint64_t)> read_callback,
 -                 std::function<void(uint64_t)> write_callback);
-+                 std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                 std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                 std::function<void(uint64_t, bool)> read_callback,
++                 std::function<void(uint64_t, bool)> write_callback,
 +                 std::function<void(int,int,int)> refresh_callback);
  }  // namespace dramsim3
  
  #endif
 diff --git a/src/hmc.cc b/src/hmc.cc
-index 5f5c23b..21dcb5d 100644
+index 5f5c23b..f7340fa 100644
 --- a/src/hmc.cc
 +++ b/src/hmc.cc
 @@ -241,9 +241,10 @@ HMCResponse::HMCResponse(uint64_t id, HMCReqType req_type, int dest_link,
@@ -701,8 +427,8 @@ index 5f5c23b..21dcb5d 100644
 -                                 std::function<void(uint64_t)> read_callback,
 -                                 std::function<void(uint64_t)> write_callback)
 -    : BaseDRAMSystem(config, output_dir, read_callback, write_callback),
-+                                 std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                                 std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                                 std::function<void(uint64_t, bool)> read_callback,
++                                 std::function<void(uint64_t, bool)> write_callback,
 +                                 std::function<void(int, int, int)> refresh_callback)
 +    : BaseDRAMSystem(config, output_dir, read_callback, write_callback,refresh_callback),
        logic_clk_(0),
@@ -733,7 +459,7 @@ index 5f5c23b..21dcb5d 100644
                  delete (resp);
                  link_resp_queues_[i].erase(link_resp_queues_[i].begin());
 diff --git a/src/hmc.h b/src/hmc.h
-index f9900c6..f64d2c7 100644
+index f9900c6..023ad61 100644
 --- a/src/hmc.h
 +++ b/src/hmc.h
 @@ -105,8 +105,9 @@ class HMCResponse {
@@ -742,14 +468,14 @@ index f9900c6..f64d2c7 100644
      HMCMemorySystem(Config& config, const std::string& output_dir,
 -                    std::function<void(uint64_t)> read_callback,
 -                    std::function<void(uint64_t)> write_callback);
-+                    std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                    std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                    std::function<void(uint64_t, bool)> read_callback,
++                    std::function<void(uint64_t, bool)> write_callback,
 +                    std::function<void(int, int, int)> refresh_callback);
      ~HMCMemorySystem();
      // assuming there are 2 clock domains one for logic die one for DRAM
      // we can unify them as one but then we'll have to convert all the
 diff --git a/src/memory_system.cc b/src/memory_system.cc
-index 739ea1a..5445420 100644
+index 739ea1a..728072f 100644
 --- a/src/memory_system.cc
 +++ b/src/memory_system.cc
 @@ -3,16 +3,17 @@
@@ -758,8 +484,8 @@ index 739ea1a..5445420 100644
                             const std::string &output_dir,
 -                           std::function<void(uint64_t)> read_callback,
 -                           std::function<void(uint64_t)> write_callback)
-+                           std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                           std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                           std::function<void(uint64_t, bool)> read_callback,
++                           std::function<void(uint64_t, bool)> write_callback,
 +                           std::function<void(int, int, int)> refresh_callback)
      : config_(new Config(config_file, output_dir)) {
      // TODO: ideal memory type?
@@ -790,8 +516,8 @@ index 739ea1a..5445420 100644
 -    std::function<void(uint64_t)> read_callback,
 -    std::function<void(uint64_t)> write_callback) {
 -    dram_system_->RegisterCallbacks(read_callback, write_callback);
-+    std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+    std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++    std::function<void(uint64_t, bool)> read_callback,
++    std::function<void(uint64_t, bool)> write_callback,
 +    std::function<void(int, int, int)> refresh_callback) {
 +    dram_system_->RegisterCallbacks(read_callback, write_callback,refresh_callback);
  }
@@ -804,15 +530,15 @@ index 739ea1a..5445420 100644
 -                 std::function<void(uint64_t)> read_callback,
 -                 std::function<void(uint64_t)> write_callback) {
 -    return new MemorySystem(config_file, output_dir, read_callback, write_callback);
-+                 std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                 std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                 std::function<void(uint64_t, bool)> read_callback,
++                 std::function<void(uint64_t, bool)> write_callback,
 +                 std::function<void(int, int, int)> refresh_callback) {
 +    return new MemorySystem(config_file, output_dir, read_callback, write_callback, refresh_callback);
  }
  }  // namespace dramsim3
  
 diff --git a/src/memory_system.h b/src/memory_system.h
-index 57eeca1..e09c815 100644
+index 57eeca1..a7c53b7 100644
 --- a/src/memory_system.h
 +++ b/src/memory_system.h
 @@ -14,12 +14,14 @@ namespace dramsim3 {
@@ -821,15 +547,15 @@ index 57eeca1..e09c815 100644
      MemorySystem(const std::string &config_file, const std::string &output_dir,
 -                 std::function<void(uint64_t)> read_callback,
 -                 std::function<void(uint64_t)> write_callback);
-+                 std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                 std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                 std::function<void(uint64_t, bool)> read_callback,
++                 std::function<void(uint64_t, bool)> write_callback,
 +                 std::function<void(int, int, int)> refresh_callback);
      ~MemorySystem();
      void ClockTick();
 -    void RegisterCallbacks(std::function<void(uint64_t)> read_callback,
 -                           std::function<void(uint64_t)> write_callback);
-+    void RegisterCallbacks(std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                           std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++    void RegisterCallbacks(std::function<void(uint64_t, bool)> read_callback,
++                           std::function<void(uint64_t, bool)> write_callback,
 +                           std::function<void(int, int, int)> refresh_callback);
      double GetTCK() const;
      int GetBusBits() const;
@@ -849,8 +575,8 @@ index 57eeca1..e09c815 100644
  MemorySystem* GetMemorySystem(const std::string &config_file, const std::string &output_dir,
 -                 std::function<void(uint64_t)> read_callback,
 -                 std::function<void(uint64_t)> write_callback);
-+                 std::function<void(uint64_t, int, int, int, int, int, int, int)> read_callback,
-+                 std::function<void(uint64_t, int, int, int, int, int, int, int)> write_callback,
++                 std::function<void(uint64_t, bool)> read_callback,
++                 std::function<void(uint64_t, bool)> write_callback,
 +                 std::function<void(int, int, int)> refresh_callback);
  
  }  // namespace dramsim3
@@ -920,5 +646,5 @@ index 257c941..bdad9fa 100644
     private:
      uint64_t clk_;
 -- 
-2.40.1
+2.41.0
 

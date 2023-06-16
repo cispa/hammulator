@@ -1,0 +1,25 @@
+From 230a04e110b07fc14a785df70471326b18e6cd41 Mon Sep 17 00:00:00 2001
+From: Fabian Thomas <fabian@fabianthomas.de>
+Date: Fri, 16 Jun 2023 12:20:18 +0200
+Subject: [PATCH 3/4] use reference
+
+---
+ src/command_queue.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/command_queue.cc b/src/command_queue.cc
+index f121d28..21045d4 100644
+--- a/src/command_queue.cc
++++ b/src/command_queue.cc
+@@ -115,7 +115,7 @@ bool CommandQueue::WillAcceptCommand(int rank, int bankgroup, int bank) const {
+ }
+ 
+ bool CommandQueue::QueueEmpty() const {
+-    for (const auto q : queues_) {
++    for (const auto &q : queues_) {
+         if (!q.empty()) {
+             return false;
+         }
+-- 
+2.41.0
+

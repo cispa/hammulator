@@ -1,0 +1,48 @@
+From 6e20e36ae85d908ec848561bd59abce108df884a Mon Sep 17 00:00:00 2001
+From: Fabian Thomas <fabian@fabianthomas.de>
+Date: Fri, 16 Jun 2023 12:19:56 +0200
+Subject: [PATCH 2/4] add reverse address mapping
+
+---
+ src/configuration.cc | 11 +++++++++++
+ src/configuration.h  |  2 ++
+ 2 files changed, 13 insertions(+)
+
+diff --git a/src/configuration.cc b/src/configuration.cc
+index b1a2b9a..9e434f8 100644
+--- a/src/configuration.cc
++++ b/src/configuration.cc
+@@ -43,6 +43,17 @@ Address Config::AddressMapping(uint64_t hex_addr) const {
+     return Address(channel, rank, bg, ba, ro, co);
+ }
+ 
++uint64_t Config::ReverseAddressMapping(int channel, int rank, int bg, int ba, int ro, int co) const {
++    uint64_t addr = 0;
++    addr |= channel << ch_pos;
++    addr |= rank << ra_pos;
++    addr |= bg << bg_pos;
++    addr |= ba << ba_pos;
++    addr |= ro << ro_pos;
++    addr |= co << co_pos;
++    return addr << shift_bits;
++}
++
+ void Config::CalculateSize() {
+     // calculate rank and re-calculate channel_size
+     devices_per_rank = bus_width / device_width;
+diff --git a/src/configuration.h b/src/configuration.h
+index 2dfa5ae..e0c14dd 100644
+--- a/src/configuration.h
++++ b/src/configuration.h
+@@ -35,6 +35,8 @@ class Config {
+    public:
+     Config(std::string config_file, std::string out_dir);
+     Address AddressMapping(uint64_t hex_addr) const;
++    uint64_t ReverseAddressMapping(int channel, int rank, int bg, int ba, int ro, int co) const;
++
+     // DRAM physical structure
+     DRAMProtocol protocol;
+     int channel_size;
+-- 
+2.41.0
+

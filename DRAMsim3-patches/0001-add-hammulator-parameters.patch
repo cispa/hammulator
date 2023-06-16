@@ -1,0 +1,150 @@
+From a7252bb565398ae5dc5ea177a6ab8de747d6f63d Mon Sep 17 00:00:00 2001
+From: Fabian Thomas <fabian@fabianthomas.de>
+Date: Fri, 16 Jun 2023 12:19:01 +0200
+Subject: [PATCH 1/4] add hammulator parameters
+
+---
+ configs/DDR4_8Gb_x8_2400.ini | 33 +++++++++++++++++++++++++++++++++
+ src/configuration.cc         | 31 ++++++++++++++++++++++++++++++-
+ src/configuration.h          | 20 ++++++++++++++++++++
+ 3 files changed, 83 insertions(+), 1 deletion(-)
+
+diff --git a/configs/DDR4_8Gb_x8_2400.ini b/configs/DDR4_8Gb_x8_2400.ini
+index f55b021..3b4f071 100644
+--- a/configs/DDR4_8Gb_x8_2400.ini
++++ b/configs/DDR4_8Gb_x8_2400.ini
+@@ -61,6 +61,39 @@ row_buf_policy = OPEN_PAGE
+ cmd_queue_size = 8
+ trans_queue_size = 32
+ 
++[rowhammer]
++# Number of hammers so that a the first bit flips start to occur.
++HC_first = 10000.0
++# Number of hammers where no new flips occur anymore.
++HC_last = 150000.0
++
++# Probability that a quadword flips at HC_last
++# this scales linearly with HC
++HC_last_bitflip_rate = 0.005
++
++inc_dist_1 = 1.0
++inc_dist_2 = 0.0
++inc_dist_3 = 0.0
++inc_dist_4 = 0.0
++inc_dist_5 = 0.0
++
++# Probabilities that more than one flip occurs.
++# Need to satisfy p1+p2+p3+p4=1.
++proba_1_bit_flipped = 1.0
++proba_2_bit_flipped = 0.0
++proba_3_bit_flipped = 0.0
++proba_4_bit_flipped = 0.0
++# predefined static flip mask, overwrites probabilities
++# flip_mask = 0x10000
++
++# Probability as reported by Kim et. al
++para_proba = 0.001
++para_enabled = false
++
++# Threshold so that it is just below HC_first
++trr_threshold = 8000
++trr_enabled = false
++
+ [other]
+ epoch_period = 1204819
+ output_level = 1
+diff --git a/src/configuration.cc b/src/configuration.cc
+index 297692d..b1a2b9a 100644
+--- a/src/configuration.cc
++++ b/src/configuration.cc
+@@ -1,5 +1,6 @@
+ #include "configuration.h"
+-
++#include <cassert>
++#include <stdio.h>
+ #include <vector>
+ 
+ #ifdef THERMAL
+@@ -22,6 +23,7 @@ Config::Config(std::string config_file, std::string out_dir)
+     CalculateSize();
+     SetAddressMapping();
+     InitTimingParams();
++    InitRowhammerParams();
+     InitPowerParams();
+     InitOtherParams();
+ #ifdef THERMAL
+@@ -180,6 +182,33 @@ void Config::InitOtherParams() {
+     return;
+ }
+ 
++void Config::InitRowhammerParams() {
++    const auto& reader = *reader_;
++    // These values come from table 6 of Revisiting by Kim et. al
++    inc_dist_1 = reader.GetReal("rowhammer", "inc_dist_1", 1.0);   // 0.3/0.3
++    inc_dist_2 = reader.GetReal("rowhammer", "inc_dist_2", 0.0);   // 0.0/0.3
++    inc_dist_3 = reader.GetReal("rowhammer", "inc_dist_3", 0.3);   // 0.1/0.3
++    inc_dist_4 = reader.GetReal("rowhammer", "inc_dist_4", 0.0);   // 0.0/0.3
++    inc_dist_5 = reader.GetReal("rowhammer", "inc_dist_5", 0.1);   // 0.03/0.3
++    hc_first = reader.GetReal("rowhammer", "HC_first", 300.0);
++    hc_last = reader.GetReal("rowhammer", "HC_last", 300.0);
++    hc_last_bitflip_rate = reader.GetReal("rowhammer", "hc_last_bitflip_rate", 1.0/1000);
++    proba_1_bit_flipped = reader.GetReal("rowhammer", "proba_1_bit_flipped", 1.0);
++    proba_2_bit_flipped = reader.GetReal("rowhammer", "proba_2_bit_flipped", 0.0);
++    proba_3_bit_flipped = reader.GetReal("rowhammer", "proba_3_bit_flipped", 0.0);
++    proba_4_bit_flipped = reader.GetReal("rowhammer", "proba_4_bit_flipped", 0.0);
++    if (proba_1_bit_flipped+proba_2_bit_flipped+proba_3_bit_flipped+proba_4_bit_flipped != 1.0) {
++        std::cerr << "probabilities do not sum up to one"  << std::endl;
++        exit(1);
++    }
++    flip_mask = reader.GetReal("rowhammer", "flip_mask", 0);
++    para_proba = reader.GetReal("rowhammer", "para_proba", 0.05);
++    para_enabled = reader.GetBoolean("rowhammer", "para_enabled", false);
++    trr_threshold = reader.GetInteger("rowhammer", "trr_threshold", 200);
++    trr_enabled = reader.GetBoolean("rowhammer", "trr_enabled", false);
++    return;
++}
++
+ void Config::InitPowerParams() {
+     const auto& reader = *reader_;
+     // Power-related parameters
+diff --git a/src/configuration.h b/src/configuration.h
+index 44dae77..2dfa5ae 100644
+--- a/src/configuration.h
++++ b/src/configuration.h
+@@ -99,6 +99,25 @@ class Config {
+     int tRCDRD;
+     int tRCDWR;
+ 
++    // Rowhammer
++    double inc_dist_1;
++    double inc_dist_2;
++    double inc_dist_3;
++    double inc_dist_4;
++    double inc_dist_5;
++    double hc_first;
++    double hc_last;
++    double hc_last_bitflip_rate;
++    double proba_1_bit_flipped;
++    double proba_2_bit_flipped;
++    double proba_3_bit_flipped;
++    double proba_4_bit_flipped;
++    uint64_t flip_mask;
++    bool para_enabled;
++    double para_proba;
++    bool trr_enabled;
++    int trr_threshold;
++
+     // pre calculated power parameters
+     double act_energy_inc;
+     double pre_energy_inc;
+@@ -190,6 +209,7 @@ class Config {
+                    int default_val) const;
+     void InitDRAMParams();
+     void InitOtherParams();
++    void InitRowhammerParams();
+     void InitPowerParams();
+     void InitSystemParams();
+ #ifdef THERMAL
+-- 
+2.41.0
+
