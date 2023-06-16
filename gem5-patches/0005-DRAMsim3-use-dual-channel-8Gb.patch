@@ -1,7 +1,7 @@
 From 406fd7bab74b99d878394229b752a23b00e0cd51 Mon Sep 17 00:00:00 2001
 From: Fabian Thomas <fabian@fabianthomas.de>
 Date: Fri, 16 Jun 2023 10:57:18 +0200
-Subject: [PATCH 5/7] DRAMsim3: use dual channel 8Gb
+Subject: [PATCH 5/8] DRAMsim3: use dual channel 8Gb
 
 ---
  src/python/gem5/components/memory/dramsim_3.py | 7 +++++--

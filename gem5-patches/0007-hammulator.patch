@@ -1,7 +1,7 @@
 From 59215b1ba94607f53b9a4a80c7d3b769c94efaaf Mon Sep 17 00:00:00 2001
 From: Fabian Thomas <fabian@fabianthomas.de>
 Date: Fri, 16 Jun 2023 11:15:12 +0200
-Subject: [PATCH 7/7] hammulator
+Subject: [PATCH 7/8] hammulator
 
 ---
  src/mem/dramsim3.cc         | 222 ++++++++++++++++++++++++++++++++++--

@@ -1,0 +1,183 @@
+From 46b5a1d20360a7795206261ac0dd569c36fe4d3e Mon Sep 17 00:00:00 2001
+From: Fabian Thomas <fabian@fabianthomas.de>
+Date: Fri, 16 Jun 2023 12:43:17 +0200
+Subject: [PATCH 8/8] clean up callbacks
+
+---
+ src/mem/dramsim3.cc         | 30 +++++++++++++++---------------
+ src/mem/dramsim3.hh         | 18 +++++++-----------
+ src/mem/dramsim3_wrapper.cc |  8 ++++----
+ src/mem/dramsim3_wrapper.hh |  8 ++++----
+ 4 files changed, 30 insertions(+), 34 deletions(-)
+
+diff --git a/src/mem/dramsim3.cc b/src/mem/dramsim3.cc
+index 644f5d5c45..46acbfcd78 100644
+--- a/src/mem/dramsim3.cc
++++ b/src/mem/dramsim3.cc
+@@ -56,19 +56,13 @@ DRAMsim3::DRAMsim3(const Params &p) :
+     AbstractMemory(p),
+     port(name() + ".port", *this),
+     read_cb(std::bind(&DRAMsim3::readComplete,
+-                      this, 0, std::placeholders::_1, 
+-                      std::placeholders::_2, std::placeholders::_3, 
+-                      std::placeholders::_4, std::placeholders::_5, 
+-                      std::placeholders::_6, std::placeholders::_7, 
+-                      std::placeholders::_8)),
++                      this, 0, std::placeholders::_1,
++                      std::placeholders::_2)),
+     write_cb(std::bind(&DRAMsim3::writeComplete,
+-                       this, 0, std::placeholders::_1, 
+-                       std::placeholders::_2, std::placeholders::_3, 
+-                       std::placeholders::_4, std::placeholders::_5, 
+-                       std::placeholders::_6, std::placeholders::_7,
+-                       std::placeholders::_8)),
++                       this, 0, std::placeholders::_1,
++                       std::placeholders::_2)),
+     refresh_cb(std::bind(&DRAMsim3::refreshComplete,
+-                       this, 0, std::placeholders::_1, 
++                       this, 0, std::placeholders::_1,
+                        std::placeholders::_2, std::placeholders::_3)),
+     wrapper(p.configFile, p.filePath, read_cb, write_cb, refresh_cb),
+     retryReq(false), retryResp(false), startTick(0),
+@@ -362,10 +356,17 @@ void DRAMsim3::TRR(int channel, int rank, int bankgroup, int bank, int row) {
+     }
+ }
+ 
+-void DRAMsim3::readComplete(unsigned id, uint64_t addr, int channel, int rank, int bankgroup, int bank, int row, int column, int bufferhit)
++void DRAMsim3::readComplete(unsigned id, uint64_t addr, bool bufferhit)
+ {
+     DPRINTF(DRAMsim3, "Read to address %lld complete\n", addr);
+ 
++    auto a = config->AddressMapping(addr);
++    int channel = a.channel;
++    int rank = a.rank;
++    int bankgroup = a.bankgroup;
++    int bank = a.bank;
++    int row = a.row;
++
+     // get the outstanding reads for the address in question
+     auto p = outstandingReads.find(addr);
+     assert(p != outstandingReads.end());
+@@ -389,11 +390,10 @@ void DRAMsim3::readComplete(unsigned id, uint64_t addr, int channel, int rank, i
+     counts[channel]++;
+ 
+     // Memory corruption code
+-    bool buffhit = !!bufferhit;
+     hammer_count.erase(addr);
+ 
+     // no rowhammer effects when rowbuffer hit
+-    if (buffhit) {
++    if (bufferhit) {
+         return;
+     }
+ 
+@@ -499,7 +499,7 @@ void DRAMsim3::readComplete(unsigned id, uint64_t addr, int channel, int rank, i
+     }
+ }
+ 
+-void DRAMsim3::writeComplete(unsigned id, uint64_t addr, int channel, int rank, int bankgroup, int bank, int row, int column, int bh)
++void DRAMsim3::writeComplete(unsigned id, uint64_t addr, bool bufferhit)
+ {
+     DPRINTF(DRAMsim3, "Write to address %lld complete\n", addr);
+ 
+diff --git a/src/mem/dramsim3.hh b/src/mem/dramsim3.hh
+index cb4af4e69e..709c09d7ad 100644
+--- a/src/mem/dramsim3.hh
++++ b/src/mem/dramsim3.hh
+@@ -105,8 +105,8 @@ class DRAMsim3 : public AbstractMemory
+     /**
+      * Callback functions
+      */
+-    std::function<void(uint64_t, int, int, int, int, int, int, int)> read_cb;
+-    std::function<void(uint64_t, int, int, int, int, int, int, int)> write_cb;
++    std::function<void(uint64_t, bool)> read_cb;
++    std::function<void(uint64_t, bool)> write_cb;
+     std::function<void(int, int, int)> refresh_cb;
+ 
+     /**
+@@ -198,25 +198,21 @@ class DRAMsim3 : public AbstractMemory
+      *
+      * @param id Channel id of the responder
+      * @param addr Address of the request
+-     * @param cycle Internal cycle count of DRAMsim3
++     * @param bufferhit If the read was served through the row buffer
+      */
+-    void readComplete(unsigned id, uint64_t addr, int channel, int rank, int bankgroup, int bank, int row, int column, int bufferhit);
++    void readComplete(unsigned id, uint64_t addr, bool bufferhit);
+ 
+     /**
+      * Write completion callback.
+      *
+      * @param id Channel id of the responder
+      * @param addr Address of the request
+-     * @param cycle Internal cycle count of DRAMsim3
++     * @param bufferhit If the write was served through the row buffer
+      */
+-    void writeComplete(unsigned id, uint64_t addr, int channel, int rank, int bankgroup, int bank, int row, int column, int bufferhit);
++    void writeComplete(unsigned id, uint64_t addr, bool bufferhit);
+ 
+      /**
+-     * Refresh competion callback.
+-     *
+-     * @param id Channel id of the responder
+-     * @param addr Address of the request
+-     * @param cycle Internal cycle count of DRAMsim3
++     * Refresh completion callback.
+      */
+     void refreshComplete(unsigned id, int channel, int bankgroup, int bank);
+ 
+diff --git a/src/mem/dramsim3_wrapper.cc b/src/mem/dramsim3_wrapper.cc
+index a7717b8fc5..40f46a94b3 100644
+--- a/src/mem/dramsim3_wrapper.cc
++++ b/src/mem/dramsim3_wrapper.cc
+@@ -63,8 +63,8 @@ namespace memory
+ 
+ DRAMsim3Wrapper::DRAMsim3Wrapper(const std::string& config_file,
+                                  const std::string& working_dir,
+-                                 std::function<void(uint64_t, int, int, int,int, int, int, int)> read_cb,
+-                                 std::function<void(uint64_t, int, int, int, int, int, int, int)> write_cb,
++                                 std::function<void(uint64_t, bool)> read_cb,
++                                 std::function<void(uint64_t, bool)> write_cb,
+                                  std::function<void(int, int, int)> refresh_cb) :
+     dramsim(dramsim3::GetMemorySystem(config_file, working_dir,
+                                        read_cb, write_cb,refresh_cb)),
+@@ -120,8 +120,8 @@ DRAMsim3Wrapper::resetStats()
+ }
+ 
+ void
+-DRAMsim3Wrapper::setCallbacks(std::function<void(uint64_t, int, int, int, int, int, int, int)> read_complete,
+-                              std::function<void(uint64_t, int, int, int, int, int, int, int)> write_complete,
++DRAMsim3Wrapper::setCallbacks(std::function<void(uint64_t, bool)> read_complete,
++                              std::function<void(uint64_t, bool)> write_complete,
+                               std::function<void(int, int, int)> refresh_complete)
+ {
+     dramsim->RegisterCallbacks(read_complete, write_complete, refresh_complete);
+diff --git a/src/mem/dramsim3_wrapper.hh b/src/mem/dramsim3_wrapper.hh
+index 9b8db6b6a9..8f212cd287 100644
+--- a/src/mem/dramsim3_wrapper.hh
++++ b/src/mem/dramsim3_wrapper.hh
+@@ -100,8 +100,8 @@ class DRAMsim3Wrapper
+      */
+     DRAMsim3Wrapper(const std::string& config_file,
+                     const std::string& working_dir,
+-                    std::function<void(uint64_t, int, int, int, int, int, int, int)> read_cb,
+-                    std::function<void(uint64_t, int, int, int, int, int, int, int)> write_cb,
++                    std::function<void(uint64_t, bool)> read_cb,
++                    std::function<void(uint64_t, bool)> write_cb,
+                     std::function<void(int, int, int)> refresh_cb);
+     ~DRAMsim3Wrapper();
+ 
+@@ -124,8 +124,8 @@ class DRAMsim3Wrapper
+      * @param write_callback Callback used for write completions
+      * @param refresh_callback Callback used for refresh completions
+      */
+-    void setCallbacks(std::function<void(uint64_t, int, int, int, int, int, int, int)> read_complete,
+-                      std::function<void(uint64_t, int, int, int, int, int, int, int)> write_complete,
++    void setCallbacks(std::function<void(uint64_t, bool)> read_complete,
++                      std::function<void(uint64_t, bool)> write_complete,
+                       std::function<void(int, int, int)> refresh_complete);
+ 
+     /**
+-- 
+2.41.0
+
