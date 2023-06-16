@@ -1,7 +1,7 @@
-From a9db168b2e70455282d03e85260688013c99d31e Mon Sep 17 00:00:00 2001
+From 59d891560deb0ba542afb895d839988414f2ffd5 Mon Sep 17 00:00:00 2001
 From: Fabian Thomas <fabian@fabianthomas.de>
 Date: Fri, 16 Jun 2023 10:49:39 +0200
-Subject: [PATCH 4/8] make DRAMsim3 configs path compatible with hammulator
+Subject: [PATCH 4/7] make DRAMsim3 configs path compatible with hammulator
 
 ---
  src/mem/DRAMsim3.py | 4 ++--

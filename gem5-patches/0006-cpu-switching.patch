@@ -1,7 +1,7 @@
-From e006c8e4f8a928bc048c692cce2492060b2658fe Mon Sep 17 00:00:00 2001
+From 07eb9e16b353c8e23b903ba835e0ffa99d948912 Mon Sep 17 00:00:00 2001
 From: Fabian Thomas <fabian@fabianthomas.de>
 Date: Fri, 16 Jun 2023 11:06:07 +0200
-Subject: [PATCH 6/8] cpu switching
+Subject: [PATCH 6/7] cpu switching
 
 ---
  configs/common/Simulation.py | 38 ++++++++++++++++++++++++------------

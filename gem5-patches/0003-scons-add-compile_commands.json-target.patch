@@ -1,7 +1,7 @@
-From af4faa3eaf464923da9e2da0d60208138873ca2b Mon Sep 17 00:00:00 2001
+From 08450fe56a35c1a99a9d66cac08d644efae0a29d Mon Sep 17 00:00:00 2001
 From: Fabian Thomas <fabian@fabianthomas.de>
 Date: Fri, 16 Jun 2023 10:49:12 +0200
-Subject: [PATCH 3/8] scons: add compile_commands.json target
+Subject: [PATCH 3/7] scons: add compile_commands.json target
 
 ---
  SConstruct     | 1 +

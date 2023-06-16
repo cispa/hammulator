@@ -1,7 +1,7 @@
-From 521cf99d67eb5bafe362b44d0574dece2a79342b Mon Sep 17 00:00:00 2001
+From 0391aa0660c32e172c8b0b304494fa07689f7932 Mon Sep 17 00:00:00 2001
 From: Fabian Thomas <fabian@fabianthomas.de>
 Date: Fri, 16 Jun 2023 10:47:59 +0200
-Subject: [PATCH 1/8] fix DRAMsim3 regression
+Subject: [PATCH 1/7] fix DRAMsim3 regression
 
 ---
  src/mem/DRAMsim3.py                            |  3 +++
