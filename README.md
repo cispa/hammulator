@@ -37,7 +37,7 @@ sudo apt install build-essential git m4 scons zlib1g zlib1g-dev \
     python3-dev libboost-all-dev pkg-config
 ```
 
-### Dependencies for full system emulation
+### Dependencies for full-system emulation
 
 genext2fs
 
@@ -56,7 +56,7 @@ This Makefile target builds both gem5 and DRAMsim3 into Hammulator.
 Once Hammulator is built, there are two possible paths to explore.
 With syscall emulation you can run simple Rowhammer tests and test mitigations.
 OS APIs are used, therefore, e.g., no page table can be hammered.
-For that you need full system emulation.
+For that you need full-system emulation.
 Syscall emulation requires minimal setup, therefore it is the suggested method to proceed for becoming familiar with Hammulator. 
 
 Note [this issue](https://github.com/cispa/hammulator/issues/1) when you encounter problems in this section specifying that something is wrong with performance counters.
@@ -71,10 +71,10 @@ Syscall emulation can directly be used through the `se.sh` script:
 For everything more than quick experimenting we recommend extending the Makefile by a new target for your binary.
 The verify target(s) should serve as an example.
 
-## Full system emulation
+## Full-system emulation
 
-Full system emulation is more complicated than syscall emulation since a GNU/Linux disk image is needed.
-The following sections describe how to create such an image and how to run your binary in the full system emulator.
+Full-system emulation is more complicated than syscall emulation since a GNU/Linux disk image is needed.
+The following sections describe how to create such an image and how to run your binary in the full-system emulator.
 
 ### Image Creation
 
@@ -130,6 +130,31 @@ Note that there are also `mr` and `umr` for mounting+running and remounting+runn
 
 The default run target can be changed in `img/tmp_root/run.sh`.
 
+### Running the Google Project Zero privelege escalation exploit
+
+When the repository is in a clean state and you have followed the previous steps these instructions should make the exploit run for you:
+1. `./tmux.sh make fs-create-checkpoint`
+2. Wait for the simulation to boot up.
+   Then type `mr` and hit Enter.
+3. Now the exploit should be running.
+   When it fails (which it does sometimes, see below), run it again by either typing `r` or restarting the simulation (press `CTRL+C` in shell where you launched gem5).
+
+### Problems in full-system emulation
+
+While the problems described in this section only occur in full-system emulation, they may also occur in syscall emulation.
+
+When running binaries in full-system emulation, the binary sometimes just stops executing or gets really slow.
+This can be reproduced by running the following bash command in the full-system emulation shell:
+```
+for i in {0..10000}; do echo "$i"; done
+```
+You will notice that the command randomly stops executing at a number.
+The simulation does not crash, you can just interrupt the shell by pressing `CTRL+C`.
+
+We could not find the root cause of this but it only happens once you use DRAMsim3 together with gem5 (without our changes).
+Maybe this problem will get fixed in a future version of DRAMsim.
+We suspect that this would decrease the runtime of the privilege escalation exploit further.
+
 ## Varying parameters
 
 The memory size can be changed in the Makefile with the `memsize` variable.
@@ -142,7 +167,7 @@ For details check the paper.
 ## Debugging
 
 All Makefile targets support debug flags.
-To, e.g., run full system emulation with the debug flag `DRAMsim3` execute the following command: 
+To, e.g., run full-system emulation with the debug flag `DRAMsim3` execute the following command: 
 
 ``` sh
 ./tmux.sh make fs-restore DEBUG=DRAMsim3
