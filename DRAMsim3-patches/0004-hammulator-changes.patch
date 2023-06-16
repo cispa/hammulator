@@ -1,4 +1,4 @@
-From e461c6684d5dc1d2e03202c55d18db775f9934db Mon Sep 17 00:00:00 2001
+From cacfc24afd9a588b23320becbbd359d00f5a8e48 Mon Sep 17 00:00:00 2001
 From: Fabian Thomas <fabian@fabianthomas.de>
 Date: Fri, 16 Jun 2023 12:50:52 +0200
 Subject: [PATCH 4/4] hammulator changes
@@ -6,8 +6,8 @@ Subject: [PATCH 4/4] hammulator changes
 ---
  configs/DDR4_8Gb_x8_2400.ini | 21 +++++++++++++-------
  src/common.h                 |  7 +++++--
- src/configuration.h          |  3 +++
- src/controller.cc            | 19 +++++++++++++++---
+ src/configuration.h          |  2 ++
+ src/controller.cc            | 18 ++++++++++++++---
  src/controller.h             | 12 ++++++++++--
  src/cpu.h                    |  4 +++-
  src/dram_system.cc           | 38 +++++++++++++++++++++---------------
@@ -19,10 +19,10 @@ Subject: [PATCH 4/4] hammulator changes
  src/memory_system.h          | 17 ++++++++++------
  src/refresh.cc               |  9 +++++++--
  src/refresh.h                |  4 +++-
- 15 files changed, 146 insertions(+), 74 deletions(-)
+ 15 files changed, 144 insertions(+), 74 deletions(-)
 
 diff --git a/configs/DDR4_8Gb_x8_2400.ini b/configs/DDR4_8Gb_x8_2400.ini
-index 3b4f071..e9a6677 100644
+index 1c495d5..73d02ae 100644
 --- a/configs/DDR4_8Gb_x8_2400.ini
 +++ b/configs/DDR4_8Gb_x8_2400.ini
 @@ -1,9 +1,10 @@
@@ -69,7 +69,7 @@ index 3b4f071..e9a6677 100644
 +trans_queue_size = 32000000000
  
  [rowhammer]
- # Number of hammers so that a the first bit flips start to occur.
+ # Number of hammers so that the first bit flips start to occur.
 diff --git a/src/common.h b/src/common.h
 index 2f3f044..9898cbe 100644
 --- a/src/common.h
@@ -97,7 +97,7 @@ index 2f3f044..9898cbe 100644
      friend std::ostream& operator<<(std::ostream& os, const Transaction& trans);
      friend std::istream& operator>>(std::istream& is, Transaction& trans);
 diff --git a/src/configuration.h b/src/configuration.h
-index e0c14dd..fa4970d 100644
+index e0c14dd..657b3e9 100644
 --- a/src/configuration.h
 +++ b/src/configuration.h
 @@ -37,6 +37,8 @@ class Config {
@@ -110,7 +110,7 @@ index e0c14dd..fa4970d 100644
      DRAMProtocol protocol;
      int channel_size;
 diff --git a/src/controller.cc b/src/controller.cc
-index a582dcc..c8e572c 100644
+index a582dcc..5c5c55c 100644
 --- a/src/controller.cc
 +++ b/src/controller.cc
 @@ -7,17 +7,25 @@ namespace dramsim3 {
