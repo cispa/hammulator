@@ -18,7 +18,7 @@ index f55b021..3b4f071 100644
  trans_queue_size = 32
  
 +[rowhammer]
-+# Number of hammers so that a the first bit flips start to occur.
++# Number of hammers so that the first bit flips start to occur.
 +HC_first = 10000.0
 +# Number of hammers where no new flips occur anymore.
 +HC_last = 150000.0
@@ -33,13 +33,13 @@ index f55b021..3b4f071 100644
 +inc_dist_4 = 0.0
 +inc_dist_5 = 0.0
 +
-+# Probabilities that more than one flip occurs.
++# Probabilities that x flips in a quadword occur.
 +# Need to satisfy p1+p2+p3+p4=1.
 +proba_1_bit_flipped = 1.0
 +proba_2_bit_flipped = 0.0
 +proba_3_bit_flipped = 0.0
 +proba_4_bit_flipped = 0.0
-+# predefined static flip mask, overwrites probabilities
++# predefined static flip mask, overwrites probabilities above
 +# flip_mask = 0x10000
 +
 +# Probability as reported by Kim et. al

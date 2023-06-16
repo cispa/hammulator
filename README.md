@@ -1,6 +1,6 @@
 # Hammulator
 
-This repository contains the source code for the [Hammulator framework](https://dramsec.ethz.ch/papers/thomas-dramsec23.pdf) presented at [DRAMSec23](https://dramsec.ethz.ch/2023.html).
+This repository contains the source code for the [Hammulator framework](https://dramsec.ethz.ch/papers/hammulator.pdf) presented at [DRAMSec23](https://dramsec.ethz.ch/2023.html).
 
 ## Obtaining Sources
 
@@ -134,6 +134,10 @@ The default run target can be changed in `img/tmp_root/run.sh`.
 
 The memory size can be changed in the Makefile with the `memsize` variable.
 Note again that checkpoint recreation is needed when this value changes.
+
+DRAM and Rowhammer specific parameters can be changed in `gem5/ext/dramsim3/DRAMsim3/configs/DDR4_8Gb_x8_2400.ini`.
+The ini file comments explain the Rowhammer parameters.
+For details check the paper.
 
 ## Debugging
 
