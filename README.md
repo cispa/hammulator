@@ -113,6 +113,10 @@ We used [`vmlinux-5.4.49`](http://dist.gem5.org/dist/v22-0/kernels/x86/static/vm
 
 Update the Makefile to reflect the path of your kernel (`--kernel=./img/x86-linux-kernel-5.4.49`).
 
+### Installing m5term
+
+Follow the instructions [here](https://www.gem5.org/documentation/general_docs/fullsystem/m5term) to install `m5term`, the client with which you will connect to the simulation.
+
 ### Creating a Checkpoint
 
 Due to an issue with gem5 in combination with DRAMSim3, the image we created in the previous section cannot easily be booted with KVM[^1].
