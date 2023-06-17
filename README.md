@@ -37,6 +37,11 @@ sudo apt install build-essential git m4 scons zlib1g zlib1g-dev \
     python3-dev libboost-all-dev pkg-config
 ```
 
+Plus the following for building DRAMsim3:
+``` sh
+sudo apt install libinih-dev
+```
+
 ### Dependencies for full-system emulation
 
 ``` sh

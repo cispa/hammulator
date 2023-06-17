@@ -93,11 +93,9 @@ build/tmp_root/rsa-public: progs/tiny-bignum-c/tests/rsa-public.c
 	$(CC) -o build/tmp_root/rsa-public progs/tiny-bignum-c/tests/rsa-public.c progs/tiny-bignum-c/bn.c -Iprogs/tiny-bignum-c $(CFLAGS) $(LDFLAGS)
 
 comp: build/tmp_root/verify build/tmp_root/priv build/tmp_root/target_prog
-	cd rowhammer-test && ./make.sh
 
 build/tmp.img: comp
 	mkdir -p build/tmp_root
-	cp rowhammer-test/rowhammer_test build/tmp_root
 	cp img/tmp_root/* build/tmp_root/
 	genext2fs -b 524288 --root build/tmp_root build/tmp.img
 
