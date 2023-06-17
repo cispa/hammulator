@@ -39,7 +39,9 @@ sudo apt install build-essential git m4 scons zlib1g zlib1g-dev \
 
 ### Dependencies for full-system emulation
 
-genext2fs
+``` sh
+sudo apt install genext2fs
+```
 
 ## Building
 
@@ -79,7 +81,7 @@ The following sections describe how to create such an image and how to run your 
 ### Image Creation
 
 In this step you have three options:
-1. Using our provided image downloadable [here](TODO).
+1. Using our provided image downloadable [here](https://github.com/cispa/hammulator/raw/ubuntu-img/x86-ubuntu-18.04-patched.img.zip).
    You are all setup by downloading the image to `img/x86-ubuntu-18.04-patched.img`
 2. Downloading an image from [gem5 Resources](http://resources.gem5.org/).
    Optionally patch in the scripts as discussed below.
