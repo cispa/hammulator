@@ -20,7 +20,7 @@ ifdef DEBUG
 gem5_args += --debug-flags="$(DEBUG)"
 endif
 
-fs-args := $(args) --kernel=./x86-linux-kernel-5.4.49 --disk-image=./img/x86-ubuntu-18.04-patched.img --disk-image=./build/tmp.img
+fs-args := $(args) --kernel=./img/x86-linux-kernel-5.4.49 --disk-image=./img/x86-ubuntu-18.04-patched.img --disk-image=./build/tmp.img
 se-args := $(args) --cpu-type=X86AtomicSimpleCPU --repeat-switch 1
 
 ################################################################################

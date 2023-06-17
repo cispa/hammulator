@@ -78,9 +78,33 @@ The following sections describe how to create such an image and how to run your 
 
 ### Image Creation
 
-TODO
+In this step you have three options:
+1. Using our provided image downloadable [here](TODO).
+   You are all setup by downloading the image to `img/x86-ubuntu-18.04-patched.img`
+2. Downloading an image from [gem5 Resources](http://resources.gem5.org/).
+   Optionally patch in the scripts as discussed below.
+   Copy the img to a directory of your choice but make sure to update the Makefile (`--disk-image=/path/to/your/img`).
+3. Building your own custom gem5 bootable disk image.
+   Can be tricky depending on your experience.
+   Gem5 requires a few modifications to GNU/Linux images specified [here](https://www.gem5.org/documentation/general_docs/fullsystem/disks).
+   Therefore we recommend to follow one of the options discussed on above linked page.
+   Again, patch in the scripts as discussed below and update the Makefile to respect the images location (`--disk-image=/path/to/your/img`).
 
-add the scripts from bin to the image
+Copying the convenience scripts into the image can be either be done during image creation or afterwards:
+``` sh
+# Check this answer on how to get the correct offset:
+# https://unix.stackexchange.com/a/82315
+sudo mount -o loop,offset=<correct-offset> /path/to/img /mnt
+cp img/bin/* /mnt/usr/local/bin
+```
+
+### Downloading a kernel
+
+You are free on how you get a kernel.
+We recommend obtaining one from [gem5 Resources](http://resources.gem5.org/resources/x86-linux-kernel-5.4.49).
+We used [`vmlinux-5.4.49`](http://dist.gem5.org/dist/v22-0/kernels/x86/static/vmlinux-5.4.49).
+
+Update the Makefile to reflect the path of your kernel (`--kernel=./img/x86-linux-kernel-5.4.49`).
 
 ### Creating a Checkpoint
 
