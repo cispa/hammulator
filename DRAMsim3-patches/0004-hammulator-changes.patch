@@ -51,7 +51,7 @@ index 1c495d5..73d02ae 100644
  tRPRE = 1
  tWPRE = 1
  tRRD_S = 4
-@@ -54,12 +57,16 @@ IDD6x = 30
+@@ -54,12 +57,17 @@ IDD6x = 30
  channel_size = 16384
  channels = 1
  bus_width = 64
@@ -66,7 +66,8 @@ index 1c495d5..73d02ae 100644
 -trans_queue_size = 32
 +# TODO: DRAMsim3 crashes when this is not increased.
 +# Increasing this is bad but the only option we currently have.
-+trans_queue_size = 32000000000
++# But if we increase too much the memory consumption exploads.
++trans_queue_size = 320000
  
  [rowhammer]
  # Number of hammers so that the first bit flips start to occur.

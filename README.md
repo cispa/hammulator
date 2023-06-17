@@ -22,6 +22,7 @@ Then apply the patches from the `hammulator` directory.
 Use the apply script for convenience:
 
 ``` sh
+./checkout.sh
 ./apply.sh
 ```
 
